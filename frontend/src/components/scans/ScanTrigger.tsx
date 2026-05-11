@@ -1,14 +1,13 @@
 import { useState } from 'react'
-import { createScan, getScan } from '../../api'
+import { createScan, getScan, listScans } from '../../api'
 import { useScanStore } from '../../store'
 import { Spinner, StatusBadge } from '../ui'
-import type { Scan } from '../../types'
 
 const SERVICES = ['s3', 'iam', 'ec2', 'vpc']
 const REGIONS = ['us-east-1', 'us-west-2', 'eu-west-1', 'ap-southeast-1', 'ap-south-1']
 
 export function ScanTrigger() {
-  const { activeScan, isScanning, setActiveScan, setIsScanning, updateScan } = useScanStore()
+  const { activeScan, isScanning, setActiveScan, setIsScanning, setScans, updateScan } = useScanStore()
   const [accountId, setAccountId] = useState('123456789012')
   const [region, setRegion] = useState('us-east-1')
   const [services, setServices] = useState<string[]>(SERVICES)
@@ -21,19 +20,43 @@ export function ScanTrigger() {
     if (isScanning) return
     setError(null)
     setIsScanning(true)
+
     try {
+      // Check if there's already a running or pending scan for this account+region
+      const { scans: existing } = await listScans(1, 50)
+      const alreadyRunning = existing.find(
+        (s) => (s.status === 'running' || s.status === 'pending') &&
+                s.account_id === accountId &&
+                s.region === region
+      )
+      if (alreadyRunning) {
+        setError('A scan is already running for this account/region. Wait for it to complete.')
+        setIsScanning(false)
+        return
+      }
+
       const scan = await createScan({ account_id: accountId, region, services })
       setActiveScan(scan)
-      // Poll until done
+
+      // Poll until done, then refresh scan list
       const interval = setInterval(async () => {
-        const updated = await getScan(scan.id)
-        updateScan(updated)
-        if (updated.status === 'completed' || updated.status === 'failed') {
+        try {
+          const updated = await getScan(scan.id)
+          updateScan(updated)
+          if (updated.status === 'completed' || updated.status === 'failed') {
+            clearInterval(interval)
+            setIsScanning(false)
+            setActiveScan(updated)
+            // Refresh the full scan list so Scans page stays current
+            const { scans: refreshed } = await listScans(1, 50)
+            setScans(refreshed)
+          }
+        } catch {
           clearInterval(interval)
           setIsScanning(false)
-          setActiveScan(updated)
         }
       }, 4000)
+
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Scan failed')
       setIsScanning(false)

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { getDashboardStats, getCompliance } from '../api'
 import { useDashboardStore } from '../store'
 import { StatCards, RiskPanel } from '../components/dashboard/StatCards'
@@ -6,20 +6,24 @@ import { SeverityBarChart, SeverityPieChart } from '../components/dashboard/Seve
 import { CompliancePanel } from '../components/dashboard/CompliancePanel'
 import { ScanTrigger } from '../components/scans/ScanTrigger'
 import { Spinner } from '../components/ui'
-import { useState } from 'react'
 import type { ComplianceSummary } from '../types'
 
 export default function DashboardPage() {
   const { stats, setStats } = useDashboardStore()
   const [compliance, setCompliance] = useState<ComplianceSummary | null>(null)
   const [loading, setLoading] = useState(!stats)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
+      setLoading(true)
+      setError(null)
       try {
         const [s, c] = await Promise.all([getDashboardStats(), getCompliance()])
         setStats(s)
         setCompliance(c)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to load')
       } finally {
         setLoading(false)
       }
@@ -31,15 +35,24 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center h-full gap-3">
         <Spinner size={20} />
-        <span className="font-mono text-xs text-text-secondary">Initializing CloudGuard…</span>
+        <span className="font-mono text-xs text-text-secondary">Loading dashboard…</span>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-full font-mono text-xs text-accent-red">
+        ✕ {error}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full animate-fade-in">
+    /* Full-height scrollable container */
+    <div className="h-full overflow-y-auto">
       {/* Page header */}
-      <div className="px-6 py-4 border-b border-bg-border flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-bg-border flex items-center justify-between sticky top-0 bg-bg-primary z-10">
         <div>
           <h1 className="font-display text-lg font-bold text-text-primary">Security Overview</h1>
           <p className="font-mono text-2xs text-text-muted mt-0.5 uppercase tracking-widest">
@@ -58,26 +71,26 @@ export default function DashboardPage() {
       {/* Risk + compliance inline */}
       {stats && <RiskPanel stats={stats} />}
 
-      {/* Main grid */}
-      <div className="flex-1 grid grid-cols-3 gap-0 overflow-hidden border-t border-bg-border">
-        {/* Charts col */}
-        <div className="col-span-2 grid grid-rows-2 border-r border-bg-border overflow-hidden">
-          <div className="border-b border-bg-border">
-            {stats && <SeverityBarChart stats={stats} />}
-          </div>
-          <div>
-            {stats && <SeverityPieChart stats={stats} />}
-          </div>
+      {/* Charts row */}
+      <div className="grid grid-cols-2 gap-0 border-t border-bg-border">
+        <div className="border-r border-bg-border">
+          {stats && <SeverityBarChart stats={stats} />}
         </div>
+        <div>
+          {stats && <SeverityPieChart stats={stats} />}
+        </div>
+      </div>
 
-        {/* Right col */}
-        <div className="grid grid-rows-2 overflow-hidden">
-          <div className="border-b border-bg-border overflow-auto">
-            {compliance && <CompliancePanel data={compliance} />}
-          </div>
-          <div className="overflow-auto">
-            <ScanTrigger />
-          </div>
+      {/* Compliance + Scan row */}
+      <div className="grid grid-cols-2 gap-0 border-t border-bg-border">
+        <div className="border-r border-bg-border">
+          {compliance
+            ? <CompliancePanel data={compliance} />
+            : <div className="p-6 font-mono text-xs text-text-muted">No compliance data yet.</div>
+          }
+        </div>
+        <div>
+          <ScanTrigger />
         </div>
       </div>
     </div>

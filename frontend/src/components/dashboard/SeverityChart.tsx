@@ -11,6 +11,15 @@ const COLORS = {
   low:      '#00aaff',
 }
 
+const TOOLTIP_STYLE = {
+  background: '#131619',
+  border: '1px solid #1e2328',
+  borderRadius: 0,
+  fontFamily: 'IBM Plex Mono',
+  fontSize: 11,
+  color: '#e8edf2',
+}
+
 interface Props { stats: DashboardStats }
 
 export function SeverityBarChart({ stats }: Props) {
@@ -43,19 +52,18 @@ export function SeverityBarChart({ stats }: Props) {
               width={28}
             />
             <Tooltip
-              contentStyle={{
-                background: '#131619',
-                border: '1px solid #1e2328',
-                borderRadius: 0,
-                fontFamily: 'IBM Plex Mono',
-                fontSize: 11,
-                color: '#e8edf2',
-              }}
-              cursor={{ fill: 'rgba(255,255,255,0.03)' }}
+              contentStyle={TOOLTIP_STYLE}
+              cursor={{ fill: 'rgba(255,255,255,0.04)' }}
             />
-            <Bar dataKey="value" radius={0}>
+            {/* activeBar={false} prevents recharts from overriding fill with black on click */}
+            <Bar dataKey="value" radius={0} activeBar={false}>
               {data.map((entry) => (
-                <Cell key={entry.name} fill={entry.color} fillOpacity={0.85} />
+                <Cell
+                  key={entry.name}
+                  fill={entry.color}
+                  fillOpacity={0.85}
+                  style={{ outline: 'none' }}
+                />
               ))}
             </Bar>
           </BarChart>
@@ -75,6 +83,25 @@ export function SeverityPieChart({ stats }: Props) {
     { name: 'Low',      value: s.low,      color: COLORS.low },
   ].filter(d => d.value > 0)
 
+  // Custom active shape that preserves the slice color instead of going black
+  const renderActiveShape = (props: any) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props
+    return (
+      <g>
+        <path
+          d={`M ${cx} ${cy}`}
+          fill="none"
+        />
+        <path
+          stroke="none"
+          fill={fill}
+          fillOpacity={1}
+          d={describeArc(cx, cy, innerRadius, outerRadius + 6, startAngle, endAngle)}
+        />
+      </g>
+    )
+  }
+
   return (
     <div className="panel h-full">
       <div className="panel-header">
@@ -90,28 +117,25 @@ export function SeverityPieChart({ stats }: Props) {
               innerRadius={50} outerRadius={70}
               dataKey="value"
               strokeWidth={0}
+              activeShape={renderActiveShape}
             >
               {data.map((entry) => (
-                <Cell key={entry.name} fill={entry.color} fillOpacity={0.9} />
+                <Cell
+                  key={entry.name}
+                  fill={entry.color}
+                  fillOpacity={0.9}
+                  style={{ outline: 'none' }}
+                />
               ))}
             </Pie>
-            <Tooltip
-              contentStyle={{
-                background: '#131619',
-                border: '1px solid #1e2328',
-                borderRadius: 0,
-                fontFamily: 'IBM Plex Mono',
-                fontSize: 11,
-                color: '#e8edf2',
-              }}
-            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} />
           </PieChart>
         </ResponsiveContainer>
 
         <div className="flex flex-col gap-2">
           {data.map((d) => (
             <div key={d.name} className="flex items-center gap-2">
-              <span className="w-2 h-2 inline-block" style={{ background: d.color }} />
+              <span className="w-2 h-2 inline-block flex-shrink-0" style={{ background: d.color }} />
               <span className="font-mono text-xs text-text-secondary">{d.name}</span>
               <span className="font-mono text-xs text-text-primary ml-auto pl-4 tabular-nums">{d.value}</span>
             </div>
@@ -120,4 +144,30 @@ export function SeverityPieChart({ stats }: Props) {
       </div>
     </div>
   )
+}
+
+// ── Helper: SVG arc path for active pie slice ─────────────────────────────────
+
+function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
+  const rad = (angleDeg - 90) * (Math.PI / 180)
+  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) }
+}
+
+function describeArc(
+  cx: number, cy: number,
+  innerR: number, outerR: number,
+  startAngle: number, endAngle: number,
+): string {
+  const s1 = polarToCartesian(cx, cy, outerR, endAngle)
+  const e1 = polarToCartesian(cx, cy, outerR, startAngle)
+  const s2 = polarToCartesian(cx, cy, innerR, endAngle)
+  const e2 = polarToCartesian(cx, cy, innerR, startAngle)
+  const large = endAngle - startAngle > 180 ? 1 : 0
+  return [
+    `M ${s1.x} ${s1.y}`,
+    `A ${outerR} ${outerR} 0 ${large} 0 ${e1.x} ${e1.y}`,
+    `L ${e2.x} ${e2.y}`,
+    `A ${innerR} ${innerR} 0 ${large} 1 ${s2.x} ${s2.y}`,
+    'Z',
+  ].join(' ')
 }

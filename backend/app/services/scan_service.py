@@ -78,19 +78,29 @@ class ScanService:
 
         try:
             # Step 1: Run all scanners
+            # Auto-detect: use mock scanner if no AWS credentials configured
             all_assets: list[ScanResult] = []
-            for service in scan.services:
-                scanner_cls = SCANNER_REGISTRY.get(service)
-                if not scanner_cls:
-                    logger.warning("unknown_service", service=service)
-                    continue
-                scanner = scanner_cls(region=scan.region, account_id=scan.account_id)
-                try:
-                    assets = await scanner.scan()
-                    all_assets.extend(assets)
-                    logger.info("service_scan_complete", service=service, assets=len(assets))
-                except Exception as exc:
-                    logger.error("scanner_failed", service=service, error=str(exc))
+            from app.config import settings as _settings
+            use_mock = not bool(_settings.AWS_ACCESS_KEY_ID)
+
+            if use_mock:
+                logger.info("demo_mode_active", reason="no AWS credentials configured, using mock scanner")
+                from app.scanners.mock_scanner import MockScanner
+                mock = MockScanner(region=scan.region, account_id=scan.account_id)
+                all_assets = await mock.scan()
+            else:
+                for service in scan.services:
+                    scanner_cls = SCANNER_REGISTRY.get(service)
+                    if not scanner_cls:
+                        logger.warning("unknown_service", service=service)
+                        continue
+                    scanner = scanner_cls(region=scan.region, account_id=scan.account_id)
+                    try:
+                        assets = await scanner.scan()
+                        all_assets.extend(assets)
+                        logger.info("service_scan_complete", service=service, assets=len(assets))
+                    except Exception as exc:
+                        logger.error("scanner_failed", service=service, error=str(exc))
 
             # Step 2: Persist assets
             asset_map: dict[str, Asset] = {}   # asset_id (ARN) → DB Asset
