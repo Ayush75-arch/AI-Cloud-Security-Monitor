@@ -1,19 +1,33 @@
-# Python
-venv/
-__pycache__/
-*.pyc
-
-# Environment
+# Environment / Secrets
 .env
+.env.*
+!.env.example
 
-# Node
-node_modules/
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
 
 # Logs
 *.log
+*.out
+*.err
+
+# Database
+*.db
+*.db-journal
+*.sqlite3
+
+# Node
+node_modules/
+dist/
+.vite/
 
 # IDE
 .vscode/
+.idea/
 
 # OS
 .DS_Store
+Thumbs.db
