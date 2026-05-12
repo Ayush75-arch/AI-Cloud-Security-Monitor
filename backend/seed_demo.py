@@ -16,7 +16,7 @@ import os
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./cloudguard.db")
 os.environ.setdefault("AI_PROVIDER", "local")
 os.environ.setdefault("SECRET_KEY", "demo-secret")
-os.environ.setdefault("OPENAI_API_KEY", "demo")
+os.environ.setdefault("GROQ_API_KEY", "demo")
 
 from app.models import Scan, Asset, Finding, ComplianceResult
 from app.database import engine, Base

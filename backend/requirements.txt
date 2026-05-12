@@ -21,7 +21,6 @@ celery==5.4.0
 redis==5.0.4
 
 # AI
-openai==1.30.1
 httpx==0.27.0
 
 # Utilities
@@ -32,6 +31,17 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.9
 
 # Dev
+pytest==8.2.0
+pytest-asyncio==0.23.6
+httpx==0.27.0
+
+# Production additions
+slowapi==0.1.9          # Rate limiting
+python-jose[cryptography]==3.3.0  # JWT
+passlib[bcrypt]==1.7.4  # Password hashing
+limits==3.13.0          # slowapi dependency
+alembic==1.13.1         # DB migrations
+gunicorn==22.0.0        # Production WSGI server
 pytest==8.2.0
 pytest-asyncio==0.23.6
 httpx==0.27.0

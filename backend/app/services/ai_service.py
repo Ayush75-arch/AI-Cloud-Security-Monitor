@@ -9,7 +9,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base_adapter import BaseAIAdapter
-from app.config import settings
+from app.config import refresh_settings
 from app.models import Finding
 from app.utils.exceptions import AIProviderError
 from app.utils.logger import get_logger
@@ -19,14 +19,15 @@ logger = get_logger(__name__)
 
 def get_ai_adapter() -> BaseAIAdapter:
     """Factory: returns configured AI adapter based on AI_PROVIDER setting."""
-    if settings.AI_PROVIDER == "openai":
-        from app.ai.openai_adapter import OpenAIAdapter
-        return OpenAIAdapter()
-    elif settings.AI_PROVIDER == "local":
+    current_settings = refresh_settings()
+    if current_settings.AI_PROVIDER == "groq":
+        from app.ai.groq_adapter import GROQAdapter
+        return GROQAdapter()
+    elif current_settings.AI_PROVIDER == "local":
         from app.ai.local_llm_adapter import LocalLLMAdapter
         return LocalLLMAdapter()
     else:
-        raise AIProviderError(f"Unknown AI_PROVIDER: {settings.AI_PROVIDER}")
+        raise AIProviderError(f"Unknown AI_PROVIDER: {current_settings.AI_PROVIDER}")
 
 
 class AIService:

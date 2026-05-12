@@ -1,12 +1,15 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import clsx from 'clsx'
 
 const NAV = [
-  { to: '/',           label: 'Overview',   icon: '◈' },
-  { to: '/findings',   label: 'Findings',   icon: '⬡' },
-  { to: '/compliance', label: 'Compliance', icon: '◻' },
-  { to: '/assets',     label: 'Assets',     icon: '◇' },
-  { to: '/scans',      label: 'Scans',      icon: '▷' },
+  { to: '/',             label: 'Overview',      icon: '◈' },
+  { to: '/findings',     label: 'Findings',      icon: '⬡' },
+  { to: '/attack-paths', label: 'Attack Paths',  icon: '⇢' },
+  { to: '/compliance',   label: 'Compliance',    icon: '◻' },
+  { to: '/iac',          label: 'IaC Scanner',   icon: '◇' },
+  { to: '/assets',       label: 'Assets',        icon: '▣' },
+  { to: '/scans',        label: 'Scans',         icon: '▷' },
+  { to: '/chat',         label: 'AI Copilot',    icon: '✦' },
 ]
 
 export function AppLayout() {
@@ -26,7 +29,7 @@ export function AppLayout() {
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 py-4 px-3 space-y-0.5">
+        <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
           {NAV.map(({ to, label, icon }) => (
             <NavLink
               key={to}
@@ -41,7 +44,7 @@ export function AppLayout() {
                 )
               }
             >
-              <span className="text-base leading-none">{icon}</span>
+              <span className="text-base leading-none w-4 text-center">{icon}</span>
               {label}
             </NavLink>
           ))}

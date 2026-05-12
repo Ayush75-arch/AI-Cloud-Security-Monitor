@@ -1,0 +1,39 @@
+2026-05-12T17:07:03.222919Z [info     ] cloudguard_startup             ai=groq db=sqlite+aiosqlite env=development version=1.0.0
+INFO:     127.0.0.1:52011 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61426 - "GET /api/v1/health HTTP/1.1" 200 OK
+2026-05-12T17:08:32.123562Z [error    ] chat_groq_connection_error     error=All connection attempts failed request_id=8c531ecd-baaf-4f54-9d7e-410db19a31af
+2026-05-12T17:08:32.141800Z [info     ] http_request                   client=127.0.0.1 duration_ms=2205.16 method=POST path=/api/v1/chat request_id=8c531ecd-baaf-4f54-9d7e-410db19a31af status=200
+INFO:     127.0.0.1:61429 - "POST /api/v1/chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61446 - "GET /api/v1/health HTTP/1.1" 200 OK
+2026-05-12T17:10:49.279650Z [info     ] http_request                   client=127.0.0.1 duration_ms=60.37 method=GET path=/api/v1/compliance request_id=3d77950a-27d1-4482-a41a-bb05927c76e7 status=200
+INFO:     127.0.0.1:52210 - "GET /api/v1/compliance HTTP/1.1" 200 OK
+2026-05-12T17:10:49.321055Z [info     ] http_request                   client=127.0.0.1 duration_ms=22.57 method=GET path=/api/v1/compliance request_id=bf3c3664-4356-4a45-81fa-077f8dc2b5f3 status=200
+INFO:     127.0.0.1:52210 - "GET /api/v1/compliance HTTP/1.1" 200 OK
+2026-05-12T17:10:49.336262Z [info     ] http_request                   client=127.0.0.1 duration_ms=116.64 method=GET path=/api/v1/dashboard/stats request_id=7e6162bc-c3b2-44f9-b04a-f1b7c8febe23 status=200
+INFO:     127.0.0.1:55465 - "GET /api/v1/dashboard/stats HTTP/1.1" 200 OK
+2026-05-12T17:10:49.374881Z [info     ] http_request                   client=127.0.0.1 duration_ms=25.69 method=GET path=/api/v1/dashboard/stats request_id=38e8ab4f-6dc0-44cb-9896-883eb33636cc status=200
+INFO:     127.0.0.1:52210 - "GET /api/v1/dashboard/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55465 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55465 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52210 - "OPTIONS /api/v1/chat HTTP/1.1" 200 OK
+2026-05-12T17:10:57.334867Z [error    ] chat_groq_connection_error     error=All connection attempts failed request_id=d9e4aeb6-732d-4d60-aea9-326cf71758e9
+2026-05-12T17:10:57.347653Z [info     ] http_request                   client=127.0.0.1 duration_ms=2160.38 method=POST path=/api/v1/chat request_id=d9e4aeb6-732d-4d60-aea9-326cf71758e9 status=200
+INFO:     127.0.0.1:52210 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-05-12T17:11:09.778789Z [error    ] chat_groq_connection_error     error=All connection attempts failed request_id=dc650fc3-5479-4eca-a0d9-d880c3e235ac
+2026-05-12T17:11:09.790574Z [info     ] http_request                   client=127.0.0.1 duration_ms=2139.52 method=POST path=/api/v1/chat request_id=dc650fc3-5479-4eca-a0d9-d880c3e235ac status=200
+INFO:     127.0.0.1:60982 - "POST /api/v1/chat HTTP/1.1" 200 OK
+2026-05-12T17:11:39.354374Z [info     ] http_request                   client=127.0.0.1 duration_ms=30.35 method=GET path=/api/v1/dashboard/stats request_id=c8ee916b-3b80-4d64-924f-3cd38508dccf status=200
+INFO:     127.0.0.1:56306 - "GET /api/v1/dashboard/stats HTTP/1.1" 200 OK
+2026-05-12T17:11:39.388219Z [info     ] http_request                   client=127.0.0.1 duration_ms=12.99 method=GET path=/api/v1/compliance request_id=59c9b2e4-0c41-40ab-8316-a6b4ad0f6028 status=200
+INFO:     127.0.0.1:56306 - "GET /api/v1/compliance HTTP/1.1" 200 OK
+2026-05-12T17:11:39.439952Z [info     ] http_request                   client=127.0.0.1 duration_ms=28.86 method=GET path=/api/v1/dashboard/stats request_id=dc576457-f724-4fba-a9c3-df9d177f4697 status=200
+INFO:     127.0.0.1:56306 - "GET /api/v1/dashboard/stats HTTP/1.1" 200 OK
+2026-05-12T17:11:39.465530Z [info     ] http_request                   client=127.0.0.1 duration_ms=11.18 method=GET path=/api/v1/compliance request_id=9b60ac44-e484-4dd7-b3b0-378141ea63d5 status=200
+INFO:     127.0.0.1:56306 - "GET /api/v1/compliance HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56306 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63932 - "GET /api/v1/health HTTP/1.1" 200 OK
+2026-05-12T17:11:44.338898Z [error    ] chat_groq_connection_error     error=All connection attempts failed request_id=8119a357-e685-4e1d-8633-2752e58a8ae0
+2026-05-12T17:11:44.349265Z [info     ] http_request                   client=127.0.0.1 duration_ms=2180.0 method=POST path=/api/v1/chat request_id=8119a357-e685-4e1d-8633-2752e58a8ae0 status=200
+INFO:     127.0.0.1:63932 - "POST /api/v1/chat HTTP/1.1" 200 OK

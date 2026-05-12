@@ -1,6 +1,6 @@
 """
 CloudGuard-AI — AI Base Adapter
-Abstract interface for AI providers. Swap OpenAI ↔ local LLM via config.
+Abstract interface for AI providers. Swap GROQ ↔ local LLM via config.
 """
 import abc
 from dataclasses import dataclass
@@ -18,7 +18,7 @@ class AIAnalysis:
 class BaseAIAdapter(abc.ABC):
     """
     Pluggable AI adapter interface.
-    Implementations: OpenAIAdapter, LocalLLMAdapter.
+    Implementations: GROQAdapter, LocalLLMAdapter.
     """
 
     @abc.abstractmethod

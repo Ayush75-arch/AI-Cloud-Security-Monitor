@@ -1,26 +1,18 @@
-FROM python:3.11-slim
-
-WORKDIR /app
-
-# Install system deps
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential libpq-dev curl && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install Python deps
+# ── Stage 1: dependency builder ──────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+WORKDIR /build
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential libpq-dev && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Copy source
+# ── Stage 2: runtime ──────────────────────────────────────────────────────────
+FROM python:3.11-slim AS runtime
+WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends libpq5 curl && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /install /usr/local
 COPY . .
-
-# Non-root user for security
-RUN addgroup --system cloudguard && adduser --system --ingroup cloudguard cloudguard
+RUN groupadd --system cloudguard && useradd --system --gid cloudguard --no-create-home cloudguard && chown -R cloudguard:cloudguard /app
 USER cloudguard
-
 EXPOSE 8000
-
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/api/v1/health || exit 1
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 CMD curl -f http://localhost:8000/health || exit 1
+CMD ["gunicorn","app.main:app","--worker-class","uvicorn.workers.UvicornWorker","--workers","2","--bind","0.0.0.0:8000","--timeout","120","--graceful-timeout","30","--keep-alive","5","--access-logfile","-","--error-logfile","-"]

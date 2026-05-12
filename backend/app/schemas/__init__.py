@@ -5,7 +5,7 @@ Request/response validation and serialization for all API endpoints.
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.utils.constants import (
     AssetType,
@@ -36,13 +36,28 @@ class PaginationMeta(BaseModel):
 # ── Scan Schemas ──────────────────────────────────────────────────────────────
 
 class ScanCreateRequest(BaseModel):
-    account_id: str = Field(..., min_length=12, max_length=12, description="AWS 12-digit account ID")
-    region: str = Field(default="us-east-1")
+    account_id: str = Field(..., min_length=12, max_length=12,
+                            pattern=r"^[0-9]{12}$",
+                            description="AWS 12-digit account ID (digits only)")
+    region: str = Field(default="us-east-1", max_length=30,
+                        pattern=r"^[a-z]{2}-[a-z]+-[0-9]$",
+                        description="AWS region identifier")
     services: list[str] = Field(
         default=SUPPORTED_SERVICES,
+        max_length=10,
         description="AWS services to scan",
     )
-    triggered_by: str | None = Field(default=None, description="User or system triggering scan")
+    triggered_by: str | None = Field(default=None, max_length=100,
+                                     description="User or system triggering scan")
+
+    @field_validator("services")
+    @classmethod
+    def validate_services(cls, v: list[str]) -> list[str]:
+        allowed = set(SUPPORTED_SERVICES)
+        for svc in v:
+            if svc not in allowed:
+                raise ValueError(f"Unsupported service: {svc}. Allowed: {allowed}")
+        return v
 
     model_config = {"json_schema_extra": {"example": {
         "account_id": "123456789012",

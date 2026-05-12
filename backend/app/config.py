@@ -2,17 +2,49 @@
 CloudGuard-AI — Application Configuration
 All settings loaded from environment variables with type validation.
 """
-from functools import lru_cache
+import os
+from pathlib import Path
+from threading import Lock
 from typing import Literal
 
+from dotenv import dotenv_values
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+APP_DIR = Path(__file__).resolve().parent
+BACKEND_DIR = APP_DIR.parent
+REPO_ROOT = BACKEND_DIR.parent
+ENV_FILES = (
+    REPO_ROOT / ".env",
+    BACKEND_DIR / ".env",
+    Path(".env"),
+)
+REFRESHABLE_ENV_KEYS = {
+    "AI_PROVIDER",
+    "GROQ_API_KEY",
+    "GROQ_MODEL",
+    "LOCAL_LLM_BASE_URL",
+    "LOCAL_LLM_MODEL",
+}
+
+
+def _refresh_runtime_env() -> None:
+    """Keep long-running dev servers in sync with edited .env values."""
+    for env_file in ENV_FILES:
+        if not env_file.is_file():
+            continue
+        for key, value in dotenv_values(env_file).items():
+            if key in REFRESHABLE_ENV_KEYS and value is not None:
+                os.environ[key] = value
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=ENV_FILES,
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # ── App ──────────────────────────────────────────────────────────────
@@ -44,9 +76,9 @@ class Settings(BaseSettings):
     AWS_SESSION_TOKEN: str = ""
 
     # ── AI ───────────────────────────────────────────────────────────────
-    AI_PROVIDER: Literal["openai", "local"] = "openai"
-    OPENAI_API_KEY: str = ""
-    OPENAI_MODEL: str = "gpt-4o"
+    AI_PROVIDER: Literal["groq", "local"] = "groq"
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "llama-3.3-70b-versatile"
     LOCAL_LLM_BASE_URL: str = "http://localhost:11434"
     LOCAL_LLM_MODEL: str = "llama3"
 
@@ -55,10 +87,42 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    @field_validator("DEBUG", mode="before")
+    @classmethod
+    def parse_debug(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"1", "true", "yes", "on"}:
+                return True
+            if normalized in {"0", "false", "no", "off", ""}:
+                return False
+            return False
+        return value
 
-@lru_cache
+
 def get_settings() -> Settings:
+    _refresh_runtime_env()
     return Settings()
 
 
-settings = get_settings()
+class SettingsProxy:
+    """Mutable settings holder so long-lived imports can pick up .env changes."""
+
+    def __init__(self) -> None:
+        self._settings = get_settings()
+        self._lock = Lock()
+
+    def refresh(self) -> Settings:
+        with self._lock:
+            self._settings = get_settings()
+            return self._settings
+
+    def __getattr__(self, name: str):
+        return getattr(self._settings, name)
+
+
+settings = SettingsProxy()
+
+
+def refresh_settings() -> Settings:
+    return settings.refresh()

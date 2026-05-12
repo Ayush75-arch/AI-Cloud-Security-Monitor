@@ -29,7 +29,7 @@ export const listScans = async (
   limit = 20,
 ): Promise<{ scans: Scan[]; meta: PaginationMeta }> => {
   const res = await apiClient.get<APIResponse<Scan[]>>('/scans', { params: { page, limit } })
-  return { scans: res.data.data, meta: res.data.meta as PaginationMeta }
+  return { scans: res.data.data, meta: res.data.meta as unknown as PaginationMeta }
 }
 
 export const getScan = async (id: string): Promise<Scan> => {
@@ -42,7 +42,7 @@ export const getScanFindings = async (
   params: { severity?: string; status?: string; page?: number; limit?: number } = {},
 ): Promise<{ findings: Finding[]; meta: PaginationMeta }> => {
   const res = await apiClient.get<APIResponse<Finding[]>>(`/scans/${scanId}/findings`, { params })
-  return { findings: res.data.data, meta: res.data.meta as PaginationMeta }
+  return { findings: res.data.data, meta: res.data.meta as unknown as PaginationMeta }
 }
 
 // ── Findings ──────────────────────────────────────────────────────────────────
@@ -55,7 +55,7 @@ export const listFindings = async (params: {
   limit?: number
 } = {}): Promise<{ findings: Finding[]; meta: PaginationMeta }> => {
   const res = await apiClient.get<APIResponse<Finding[]>>('/findings', { params })
-  return { findings: res.data.data, meta: res.data.meta as PaginationMeta }
+  return { findings: res.data.data, meta: res.data.meta as unknown as PaginationMeta }
 }
 
 export const getFinding = async (id: string): Promise<Finding> => {
@@ -86,5 +86,5 @@ export const listAssets = async (params: {
   limit?: number
 } = {}): Promise<{ assets: Asset[]; meta: PaginationMeta }> => {
   const res = await apiClient.get<APIResponse<Asset[]>>('/assets', { params })
-  return { assets: res.data.data, meta: res.data.meta as PaginationMeta }
+  return { assets: res.data.data, meta: res.data.meta as unknown as PaginationMeta }
 }

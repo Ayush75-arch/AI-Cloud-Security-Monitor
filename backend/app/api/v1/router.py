@@ -1,10 +1,11 @@
 """
 CloudGuard-AI — API v1 Routers
-Scan, findings, compliance, assets, and health endpoints.
+All endpoints: scans, findings, compliance, assets, IaC, attack paths, AI chat.
 """
 import math
+from pydantic import BaseModel as _BaseModel
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,10 +29,13 @@ from app.schemas import (
 from app.services.finding_service import FindingService
 from app.services.scan_service import ScanService
 from app.utils.constants import FindingStatus, SEVERITY_WEIGHTS, Severity
-from app.config import settings
+from app.config import refresh_settings, settings
+from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
+
+# ── Background task helper ────────────────────────────────────────────────────
 
 async def _run_scan_background(scan_id: str) -> None:
     """Run scan pipeline directly in FastAPI event loop. No Celery needed."""
@@ -43,19 +47,9 @@ async def _run_scan_background(scan_id: str) -> None:
     async with AsyncSessionLocal() as db:
         await ScanService(db).run_scan(scan_id)
 
-    # Only run AI analysis if a provider is actually configured
-    if settings.AI_PROVIDER == "openai" and not settings.OPENAI_API_KEY:
-        logger.info("ai_skipped", reason="OPENAI_API_KEY not set — skipping AI analysis")
-        return
-    if settings.AI_PROVIDER == "local":
-        # Attempt local LLM but don't crash if Ollama isn't running
-        try:
-            from app.database import AsyncSessionLocal
-            from app.services.ai_service import AIService
-            async with AsyncSessionLocal() as db:
-                await AIService(db).analyze_scan_findings(scan_id)
-        except Exception as exc:
-            logger.warning("ai_skipped", reason=str(exc))
+    current_settings = refresh_settings()
+    if current_settings.AI_PROVIDER == "groq" and not current_settings.GROQ_API_KEY:
+        logger.info("ai_skipped", reason="GROQ_API_KEY not set")
         return
 
     try:
@@ -71,12 +65,15 @@ async def _run_scan_background(scan_id: str) -> None:
 
 @router.get("/health", tags=["Health"])
 async def health_check():
+    current_settings = refresh_settings()
     return {
         "status": "ok",
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT,
-        "ai_provider": settings.AI_PROVIDER,
-        "ai_configured": bool(settings.OPENAI_API_KEY) if settings.AI_PROVIDER == "openai" else True,
+        "version": current_settings.APP_VERSION,
+        "environment": current_settings.ENVIRONMENT,
+        "ai_provider": current_settings.AI_PROVIDER,
+        "ai_configured": bool(current_settings.GROQ_API_KEY)
+        if current_settings.AI_PROVIDER == "groq"
+        else True,
     }
 
 
@@ -87,15 +84,10 @@ async def create_scan(
     request: ScanCreateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
-    """Trigger a new AWS scan. Runs directly in FastAPI event loop (no Redis/Celery needed)."""
     import asyncio
-
     svc = ScanService(db)
     scan = await svc.create_scan(request)
-
-    # Run scan in background — no Celery required
     asyncio.create_task(_run_scan_background(scan.id))
-
     return APIResponse(
         data=ScanSummary.model_validate(scan),
         meta={"message": "Scan queued successfully"},
@@ -197,11 +189,9 @@ async def get_compliance_summary(
     scan_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
-    """Returns compliance scores across all frameworks for latest or specified scan."""
     if scan_id:
         query = select(ComplianceResult).where(ComplianceResult.scan_id == scan_id)
     else:
-        # Get the most recent completed scan that has compliance results
         latest_q = await db.execute(
             select(ComplianceResult.scan_id)
             .order_by(ComplianceResult.computed_at.desc())
@@ -214,7 +204,6 @@ async def get_compliance_summary(
 
     result = await db.execute(query)
     crs = result.scalars().all()
-
     overall = sum(cr.score for cr in crs) / len(crs) if crs else 0.0
     return APIResponse(data=ComplianceSummary(
         overall_score=round(overall, 1),
@@ -232,20 +221,17 @@ async def list_assets(
     limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
+    from sqlalchemy import func as sql_func
     query = select(Asset)
     if scan_id:
         query = query.where(Asset.scan_id == scan_id)
     if asset_type:
         query = query.where(Asset.asset_type == asset_type)
-
-    from sqlalchemy import func as sql_func
     count_result = await db.execute(select(sql_func.count()).select_from(query.subquery()))
     total = count_result.scalar_one()
-
     offset = (page - 1) * limit
     result = await db.execute(query.offset(offset).limit(limit))
     assets = result.scalars().all()
-
     return APIResponse(
         data=[AssetOut.model_validate(a) for a in assets],
         meta=PaginationMeta(
@@ -259,7 +245,6 @@ async def list_assets(
 
 @router.get("/dashboard/stats", tags=["Dashboard"])
 async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> APIResponse:
-    """Aggregate stats for dashboard overview cards."""
     from sqlalchemy import func as sql_func
 
     total_q = await db.execute(select(sql_func.count(Finding.id)))
@@ -285,7 +270,7 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> APIResponse
     last_scan_q = await db.execute(select(Scan.completed_at).order_by(Scan.created_at.desc()).limit(1))
     last_scan_at = last_scan_q.scalar_one_or_none()
 
-    comp_q = await db.execute(select(ComplianceResult).order_by(ComplianceResult.computed_at.desc()).limit(3))
+    comp_q = await db.execute(select(ComplianceResult).order_by(ComplianceResult.computed_at.desc()).limit(5))
     latest_compliance = comp_q.scalars().all()
     compliance_scores = {cr.framework: cr.score for cr in latest_compliance}
 
@@ -311,3 +296,106 @@ async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> APIResponse
         compliance_scores=compliance_scores,
         risk_score=risk_score,
     ))
+
+
+# ── IaC Scanner ───────────────────────────────────────────────────────────────
+
+class IaCScanRequest(_BaseModel):
+    content: str
+    filename: str = "main.tf"
+
+
+@router.post("/iac/scan", tags=["IaC"])
+@limiter.limit("30/minute")
+async def scan_iac(request: Request, body: IaCScanRequest) -> APIResponse:
+    """Scan raw Terraform HCL for misconfigurations. No cloud creds needed."""
+    from app.scanners.iac import TerraformScanner
+    scanner = TerraformScanner()
+    findings = scanner.scan_content(body.content, body.filename)
+    return APIResponse(
+        data=[{
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "file_path": f.file_path,
+            "line_number": f.line_number,
+            "resource_type": f.resource_type,
+            "resource_name": f.resource_name,
+            "compliance_mappings": f.compliance_mappings,
+            "remediation": f.remediation,
+        } for f in findings],
+        meta={"total": len(findings), "filename": body.filename},
+    )
+
+
+@router.post("/iac/scan/upload", tags=["IaC"])
+@limiter.limit("20/minute")
+async def scan_iac_upload(request: Request, file: UploadFile) -> APIResponse:
+    """Upload a .tf file for static security analysis. Validates MIME, size, and content."""
+    from app.scanners.iac import TerraformScanner
+    from app.utils.upload_validator import validate_terraform_upload
+    from app.utils.audit_log import log_iac_scan
+    client_ip = request.client.host if request.client else "unknown"
+    raw = await validate_terraform_upload(file)
+    content = raw.decode("utf-8", errors="ignore")
+    log_iac_scan(ip=client_ip, filename=file.filename or "upload.tf")
+    scanner = TerraformScanner()
+    findings = scanner.scan_content(content, file.filename or "upload.tf")
+    return APIResponse(
+        data=[{
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "description": f.description,
+            "severity": f.severity,
+            "line_number": f.line_number,
+            "resource_name": f.resource_name,
+            "remediation": f.remediation,
+            "compliance_mappings": f.compliance_mappings,
+        } for f in findings],
+        meta={"total": len(findings), "filename": file.filename},
+    )
+
+
+# ── Attack Path Analysis ──────────────────────────────────────────────────────
+
+@router.get("/attack-paths", tags=["Attack Paths"])
+async def get_attack_paths(
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    """Identify dangerous attack chains from open findings."""
+    from app.services.attack_path_service import AttackPathAnalyzer
+    analyzer = AttackPathAnalyzer(db)
+    paths = await analyzer.analyze(scan_id=scan_id)
+    return APIResponse(
+        data=[analyzer.to_dict(p) for p in paths],
+        meta={"total": len(paths)},
+    )
+
+
+# ── AI Chat Assistant ─────────────────────────────────────────────────────────
+
+class ChatRequest(_BaseModel):
+    message: str
+    history: list[dict] = []
+    context: dict | None = None
+
+
+@router.post("/chat", tags=["AI Chat"])
+async def ai_chat(body: ChatRequest) -> APIResponse:
+    """
+    AI Security Copilot — natural language cloud security Q&A.
+    Works without GROQ key using rule-based fallback.
+    """
+    from app.services.chat_service import AIChatService
+    svc = AIChatService()
+    response = await svc.chat(
+        user_message=body.message,
+        history=body.history,
+        context=body.context,
+    )
+    return APIResponse(data={
+        "message": response.message,
+        "suggested_questions": response.suggested_questions,
+    })
