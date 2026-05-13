@@ -1,13 +1,13 @@
 """
 CloudGuard-AI — GROQ Adapter
-Uses GROQ Responses API to generate security analysis for findings.
+Uses GROQ Chat Completions API to generate security analysis for findings.
 """
 import json
 
 import httpx
 
 from app.ai.base_adapter import AIAnalysis, BaseAIAdapter
-from app.config import settings
+from app.config import refresh_settings
 from app.utils.exceptions import AIProviderError
 from app.utils.logger import get_logger
 
@@ -15,16 +15,13 @@ logger = get_logger(__name__)
 
 
 class GROQAdapter(BaseAIAdapter):
-    """Calls the GROQ Responses API to generate finding analysis."""
+    """Calls the GROQ Chat Completions API to generate finding analysis."""
 
     def __init__(self):
-        if not settings.GROQ_API_KEY:
+        current_settings = refresh_settings()
+        if not current_settings.GROQ_API_KEY:
             raise AIProviderError("GROQ_API_KEY is not configured.")
-        self._endpoint = "https://api.groq.com/openai/v1/responses"
-        self._headers = {
-            "Authorization": f"Bearer {settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
+        self._endpoint = "https://api.groq.com/openai/v1/chat/completions"
 
     async def analyze_finding(
         self,
@@ -36,16 +33,25 @@ class GROQAdapter(BaseAIAdapter):
         asset_name: str,
     ) -> AIAnalysis:
         prompt = self._build_prompt(rule_id, title, description, severity, asset_type, asset_name)
+        current_settings = refresh_settings()
+        if not current_settings.GROQ_API_KEY:
+            raise AIProviderError("GROQ_API_KEY is not configured.")
+
+        headers = {
+            "Authorization": f"Bearer {current_settings.GROQ_API_KEY}",
+            "Content-Type": "application/json",
+        }
 
         try:
-            async with httpx.AsyncClient(timeout=60.0, headers=self._headers) as client:
+            async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
                 response = await client.post(
                     self._endpoint,
                     json={
-                        "model": settings.GROQ_MODEL,
-                        "input": prompt,
-                        "max_output_tokens": 600,
+                        "model": current_settings.GROQ_MODEL,
+                        "messages": [{"role": "user", "content": prompt}],
+                        "max_tokens": 600,
                         "temperature": 0.3,
+                        "response_format": {"type": "json_object"},
                     },
                 )
                 response.raise_for_status()
@@ -78,6 +84,20 @@ class GROQAdapter(BaseAIAdapter):
 
     @staticmethod
     def _extract_text(payload: dict) -> str:
+        choices = payload.get("choices")
+        if isinstance(choices, list) and choices:
+            first_choice = choices[0]
+            if isinstance(first_choice, dict):
+                message = first_choice.get("message")
+                if isinstance(message, dict):
+                    content = message.get("content", "")
+                    if isinstance(content, str):
+                        return content
+                    if isinstance(content, list):
+                        return "".join(
+                            item.get("text", "") for item in content if isinstance(item, dict)
+                        )
+
         if isinstance(payload.get("output"), str):
             return payload["output"]
 

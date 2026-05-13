@@ -99,7 +99,17 @@ async def test_list_scans_empty(client):
 
 
 @pytest.mark.asyncio
-async def test_create_scan(client):
+async def test_create_scan(client, monkeypatch):
+    import asyncio
+
+    def close_background_task(coro, *args, **kwargs):
+        coro.close()
+        task = asyncio.get_running_loop().create_future()
+        task.set_result(None)
+        return task
+
+    monkeypatch.setattr(asyncio, "create_task", close_background_task)
+
     res = await client.post("/api/v1/scans", json={
         "account_id": "123456789012",
         "region": "us-east-1",

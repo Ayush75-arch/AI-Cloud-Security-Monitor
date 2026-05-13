@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select, func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import refresh_settings
 from app.models import Asset, ComplianceResult, Finding, Scan
 from app.rules.engine import RuleEngine
 from app.scanners import SCANNER_REGISTRY, ScanResult
@@ -80,8 +81,8 @@ class ScanService:
             # Step 1: Run all scanners
             # Auto-detect: use mock scanner if no AWS credentials configured
             all_assets: list[ScanResult] = []
-            from app.config import settings as _settings
-            use_mock = not bool(_settings.AWS_ACCESS_KEY_ID)
+            current_settings = refresh_settings()
+            use_mock = not bool(current_settings.AWS_ACCESS_KEY_ID)
 
             if use_mock:
                 logger.info("demo_mode_active", reason="no AWS credentials configured, using mock scanner")
