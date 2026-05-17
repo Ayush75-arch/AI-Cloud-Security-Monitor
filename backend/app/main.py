@@ -28,7 +28,27 @@ setup_logging()
 logger = get_logger(__name__)
 
 
-@asynccontextmanager
+def _apply_migrations(conn) -> None:
+    """
+    Safe additive migrations for SQLite.
+    Adds new columns without dropping data. Idempotent — safe to run every startup.
+    """
+    from sqlalchemy import text, inspect
+    inspector = inspect(conn)
+
+    if not inspector.has_table("findings"):
+        return
+
+    existing = {col["name"] for col in inspector.get_columns("findings")}
+
+    new_columns = [
+        ("fingerprint", "VARCHAR(16)"),
+        ("resolved_at",  "DATETIME"),
+    ]
+    for column, col_type in new_columns:
+        if column not in existing:
+            conn.execute(text(f"ALTER TABLE findings ADD COLUMN {column} {col_type}"))
+            logger.info("migration_applied", column=column)
 async def lifespan(app: FastAPI):
     logger.info(
         "cloudguard_startup",
@@ -39,8 +59,12 @@ async def lifespan(app: FastAPI):
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Safe migrations: add new columns if they don't exist yet (SQLite doesn't auto-migrate)
+        await conn.run_sync(_apply_migrations)
     yield
     await engine.dispose()
+    from app.ai.groq_client import close_groq_client
+    await close_groq_client()
     logger.info("cloudguard_shutdown")
 
 

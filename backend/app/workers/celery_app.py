@@ -1,6 +1,10 @@
 """
-CloudGuard-AI — Celery Worker
-Async task queue for long-running scan jobs.
+CloudGuard-AI — Celery Worker (NOT CURRENTLY WIRED)
+
+Scans run via FastAPI BackgroundTasks. This module is retained if you want
+distributed task execution. To enable: set CELERY_BROKER_URL in .env,
+run a celery worker, and replace BackgroundTasks in router.py with
+scan_tasks.run_scan_task.delay().
 """
 from celery import Celery
 

@@ -1,12 +1,11 @@
 """
 CloudGuard-AI — GROQ Adapter
-Uses GROQ Chat Completions API to generate security analysis for findings.
+Uses shared GroqClient to generate security analysis for findings.
 """
 import json
 
-import httpx
-
 from app.ai.base_adapter import AIAnalysis, BaseAIAdapter
+from app.ai.groq_client import groq_chat_completion
 from app.config import refresh_settings
 from app.utils.exceptions import AIProviderError
 from app.utils.logger import get_logger
@@ -21,7 +20,6 @@ class GROQAdapter(BaseAIAdapter):
         current_settings = refresh_settings()
         if not current_settings.GROQ_API_KEY:
             raise AIProviderError("GROQ_API_KEY is not configured.")
-        self._endpoint = "https://api.groq.com/openai/v1/chat/completions"
 
     async def analyze_finding(
         self,
@@ -37,32 +35,15 @@ class GROQAdapter(BaseAIAdapter):
         if not current_settings.GROQ_API_KEY:
             raise AIProviderError("GROQ_API_KEY is not configured.")
 
-        headers = {
-            "Authorization": f"Bearer {current_settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
-
-        try:
-            async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
-                response = await client.post(
-                    self._endpoint,
-                    json={
-                        "model": current_settings.GROQ_MODEL,
-                        "messages": [{"role": "user", "content": prompt}],
-                        "max_tokens": 600,
-                        "temperature": 0.3,
-                        "response_format": {"type": "json_object"},
-                    },
-                )
-                response.raise_for_status()
-                return self._parse_response(response.json())
-
-        except httpx.HTTPStatusError as exc:
-            logger.error("groq_api_error", error=str(exc), rule_id=rule_id)
-            raise AIProviderError("GROQ API returned an error.") from exc
-        except Exception as exc:
-            logger.error("groq_api_error", error=str(exc), rule_id=rule_id)
-            raise AIProviderError(str(exc)) from exc
+        payload = await groq_chat_completion(
+            api_key=current_settings.GROQ_API_KEY,
+            model=current_settings.GROQ_MODEL,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=600,
+            temperature=0.3,
+            response_format={"type": "json_object"},
+        )
+        return self._parse_response(payload)
 
     @staticmethod
     def _parse_response(payload: dict) -> AIAnalysis:
@@ -97,18 +78,5 @@ class GROQAdapter(BaseAIAdapter):
                         return "".join(
                             item.get("text", "") for item in content if isinstance(item, dict)
                         )
-
-        if isinstance(payload.get("output"), str):
-            return payload["output"]
-
-        output = payload.get("output")
-        if isinstance(output, list) and output:
-            first = output[0]
-            if isinstance(first, dict):
-                if "output_text" in first:
-                    return first["output_text"]
-                if "content" in first and isinstance(first["content"], list):
-                    return "".join(
-                        item.get("text", "") for item in first["content"] if isinstance(item, dict)
-                    )
         return payload.get("output_text", "") or ""
+

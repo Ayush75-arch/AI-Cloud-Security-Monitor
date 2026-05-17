@@ -34,11 +34,17 @@ class AIService:
     """
     Coordinates AI analysis for scan findings.
     Runs concurrently with rate limiting to avoid API throttling.
+    Adapter is created lazily — __init__ never raises even if key is missing.
     """
 
     def __init__(self, db: AsyncSession):
         self._db = db
-        self._adapter = get_ai_adapter()
+        self._adapter: BaseAIAdapter | None = None
+
+    def _get_adapter(self) -> BaseAIAdapter:
+        if self._adapter is None:
+            self._adapter = get_ai_adapter()
+        return self._adapter
 
     async def analyze_scan_findings(self, scan_id: str) -> int:
         """
@@ -75,7 +81,7 @@ class AIService:
                 asset_type = finding.asset.asset_type if finding.asset else "unknown"
                 asset_name = finding.asset.asset_name if finding.asset else "unknown"
 
-                analysis = await self._adapter.analyze_finding(
+                analysis = await self._get_adapter().analyze_finding(
                     rule_id=finding.rule_id,
                     title=finding.title,
                     description=finding.description,

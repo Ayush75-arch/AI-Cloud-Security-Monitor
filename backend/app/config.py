@@ -102,7 +102,18 @@ class Settings(BaseSettings):
 
 def get_settings() -> Settings:
     _refresh_runtime_env()
-    return Settings()
+    s = Settings()
+    if s.ENVIRONMENT == "production":
+        if s.SECRET_KEY.startswith("change-me"):
+            raise RuntimeError(
+                "SECRET_KEY must be set to a secure value in production. "
+                "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+        if "sqlite" in s.DATABASE_URL:
+            raise RuntimeError(
+                "SQLite is not supported in production. Set DATABASE_URL to a PostgreSQL URL."
+            )
+    return s
 
 
 class SettingsProxy:

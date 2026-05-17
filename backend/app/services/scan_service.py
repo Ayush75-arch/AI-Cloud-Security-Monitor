@@ -22,6 +22,7 @@ from app.schemas import ScanCreateRequest, ScanDetail, ScanSummary
 from app.services.compliance_service import ComplianceService
 from app.utils.constants import (
     SEVERITY_WEIGHTS,
+    FindingStatus,
     ScanStatus,
     Severity,
 )
@@ -122,14 +123,22 @@ class ScanService:
             engine = RuleEngine()
             rule_results = engine.evaluate_all(all_assets)
 
-            # Step 4: Persist findings
+            # Step 4: Persist findings (with deduplication by fingerprint)
+            import hashlib
             severity_counts = {s: 0 for s in Severity}
+            current_fingerprints: set[str] = set()
+
             for scan_result in all_assets:
                 db_asset = asset_map.get(scan_result.asset_id)
                 if not db_asset:
                     continue
                 rule_findings = rule_results.get(scan_result.asset_id, [])
                 for rf in rule_findings:
+                    # Fingerprint = hash(rule_id + asset ARN) — stable across scans
+                    fingerprint = hashlib.sha256(
+                        f"{rf.rule_id}:{scan_result.asset_id}".encode()
+                    ).hexdigest()[:16]
+                    current_fingerprints.add(fingerprint)
                     finding = Finding(
                         scan_id=scan_id,
                         asset_id=db_asset.id,
@@ -138,9 +147,30 @@ class ScanService:
                         description=rf.description,
                         severity=rf.severity,
                         compliance_mappings=rf.compliance_mappings,
+                        fingerprint=fingerprint,
                     )
                     self._db.add(finding)
                     severity_counts[rf.severity] += 1
+
+            # Auto-resolve findings whose fingerprint no longer appears in this scan
+            # (i.e. the misconfiguration was fixed between scans)
+            if current_fingerprints:
+                prev_open = await self._db.execute(
+                    select(Finding).where(
+                        Finding.status == FindingStatus.OPEN,
+                        Finding.fingerprint.isnot(None),
+                        Finding.scan_id != scan_id,
+                    )
+                )
+                for prev in prev_open.scalars().all():
+                    if prev.fingerprint not in current_fingerprints:
+                        prev.status = FindingStatus.RESOLVED
+                        prev.resolved_at = datetime.now(timezone.utc)
+                        logger.info(
+                            "finding_auto_resolved",
+                            fingerprint=prev.fingerprint,
+                            rule_id=prev.rule_id,
+                        )
 
             # Step 5: Compute compliance scores
             all_findings_list = [rf for rfs in rule_results.values() for rf in rfs]
@@ -192,3 +222,24 @@ class ScanService:
         if error_message:
             scan.error_message = error_message
         await self._db.commit()
+
+    async def run_scan_with_ai(self, scan_id: str) -> None:
+        """
+        Full scan pipeline + async AI analysis.
+        Use this from BackgroundTasks — keeps all orchestration in the service layer.
+        Uses a separate DB session for AI so the scan session is fully closed first.
+        """
+        await self.run_scan(scan_id)
+
+        current_settings = refresh_settings()
+        if not current_settings.GROQ_API_KEY:
+            logger.info("ai_skipped", reason="GROQ_API_KEY not set")
+            return
+
+        try:
+            from app.database import AsyncSessionLocal
+            from app.services.ai_service import AIService
+            async with AsyncSessionLocal() as ai_db:
+                await AIService(ai_db).analyze_scan_findings(scan_id)
+        except Exception as exc:
+            logger.warning("ai_analysis_skipped", reason=str(exc))

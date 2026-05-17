@@ -3,12 +3,14 @@ CloudGuard-AI — API v1 Routers
 All endpoints: scans, findings, compliance, assets, IaC, attack paths, AI chat.
 """
 import math
+from typing import Annotated
 from pydantic import BaseModel as _BaseModel
 
-from fastapi import APIRouter, Depends, Query, Request, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, UploadFile
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import TokenData, get_current_user
 from app.database import get_db
 from app.models import Asset, ComplianceResult, Finding, Scan
 from app.schemas import (
@@ -34,31 +36,17 @@ from app.utils.rate_limit import limiter
 
 router = APIRouter()
 
+# Convenience alias for auth dependency
+AuthUser = Annotated[TokenData, Depends(get_current_user)]
+
 
 # ── Background task helper ────────────────────────────────────────────────────
 
 async def _run_scan_background(scan_id: str) -> None:
-    """Run scan pipeline directly in FastAPI event loop. No Celery needed."""
+    """Delegates to ScanService.run_scan_with_ai — all logic lives in the service layer."""
     from app.database import AsyncSessionLocal
-    from app.services.scan_service import ScanService
-    from app.utils.logger import get_logger
-    logger = get_logger(__name__)
-
     async with AsyncSessionLocal() as db:
-        await ScanService(db).run_scan(scan_id)
-
-    current_settings = refresh_settings()
-    if current_settings.AI_PROVIDER == "groq" and not current_settings.GROQ_API_KEY:
-        logger.info("ai_skipped", reason="GROQ_API_KEY not set")
-        return
-
-    try:
-        from app.database import AsyncSessionLocal
-        from app.services.ai_service import AIService
-        async with AsyncSessionLocal() as db:
-            await AIService(db).analyze_scan_findings(scan_id)
-    except Exception as exc:
-        logger.warning("ai_analysis_skipped", reason=str(exc))
+        await ScanService(db).run_scan_with_ai(scan_id)
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -82,12 +70,13 @@ async def health_check():
 @router.post("/scans", tags=["Scans"], status_code=202)
 async def create_scan(
     request: ScanCreateRequest,
+    background_tasks: BackgroundTasks,
+    _: AuthUser,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
-    import asyncio
     svc = ScanService(db)
     scan = await svc.create_scan(request)
-    asyncio.create_task(_run_scan_background(scan.id))
+    background_tasks.add_task(_run_scan_background, scan.id)
     return APIResponse(
         data=ScanSummary.model_validate(scan),
         meta={"message": "Scan queued successfully"},
@@ -96,6 +85,7 @@ async def create_scan(
 
 @router.get("/scans", tags=["Scans"])
 async def list_scans(
+    _: AuthUser,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -112,7 +102,7 @@ async def list_scans(
 
 
 @router.get("/scans/{scan_id}", tags=["Scans"])
-async def get_scan(scan_id: str, db: AsyncSession = Depends(get_db)) -> APIResponse:
+async def get_scan(scan_id: str, _: AuthUser, db: AsyncSession = Depends(get_db)) -> APIResponse:
     svc = ScanService(db)
     scan = await svc.get_scan(scan_id)
     return APIResponse(data=ScanDetail.model_validate(scan))
@@ -121,6 +111,7 @@ async def get_scan(scan_id: str, db: AsyncSession = Depends(get_db)) -> APIRespo
 @router.get("/scans/{scan_id}/findings", tags=["Scans"])
 async def get_scan_findings(
     scan_id: str,
+    _: AuthUser,
     severity: str | None = None,
     status: str | None = None,
     page: int = Query(1, ge=1),
@@ -144,6 +135,7 @@ async def get_scan_findings(
 
 @router.get("/findings", tags=["Findings"])
 async def list_findings(
+    _: AuthUser,
     severity: str | None = None,
     status: str | None = None,
     rule_id: str | None = None,
@@ -165,7 +157,7 @@ async def list_findings(
 
 
 @router.get("/findings/{finding_id}", tags=["Findings"])
-async def get_finding(finding_id: str, db: AsyncSession = Depends(get_db)) -> APIResponse:
+async def get_finding(finding_id: str, _: AuthUser, db: AsyncSession = Depends(get_db)) -> APIResponse:
     svc = FindingService(db)
     finding = await svc.get_finding(finding_id)
     return APIResponse(data=FindingWithAsset.model_validate(finding))
@@ -175,6 +167,7 @@ async def get_finding(finding_id: str, db: AsyncSession = Depends(get_db)) -> AP
 async def suppress_finding(
     finding_id: str,
     body: SuppressFindingRequest,
+    _: AuthUser,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
     svc = FindingService(db)
@@ -186,6 +179,7 @@ async def suppress_finding(
 
 @router.get("/compliance", tags=["Compliance"])
 async def get_compliance_summary(
+    _: AuthUser,
     scan_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
@@ -215,6 +209,7 @@ async def get_compliance_summary(
 
 @router.get("/assets", tags=["Assets"])
 async def list_assets(
+    _: AuthUser,
     scan_id: str | None = None,
     asset_type: str | None = None,
     page: int = Query(1, ge=1),
@@ -244,7 +239,7 @@ async def list_assets(
 # ── Dashboard ─────────────────────────────────────────────────────────────────
 
 @router.get("/dashboard/stats", tags=["Dashboard"])
-async def get_dashboard_stats(db: AsyncSession = Depends(get_db)) -> APIResponse:
+async def get_dashboard_stats(_: AuthUser, db: AsyncSession = Depends(get_db)) -> APIResponse:
     from sqlalchemy import func as sql_func
 
     total_q = await db.execute(select(sql_func.count(Finding.id)))
@@ -307,7 +302,7 @@ class IaCScanRequest(_BaseModel):
 
 @router.post("/iac/scan", tags=["IaC"])
 @limiter.limit("30/minute")
-async def scan_iac(request: Request, body: IaCScanRequest) -> APIResponse:
+async def scan_iac(request: Request, body: IaCScanRequest, _: AuthUser) -> APIResponse:
     """Scan raw Terraform HCL for misconfigurations. No cloud creds needed."""
     from app.scanners.iac import TerraformScanner
     scanner = TerraformScanner()
@@ -331,7 +326,7 @@ async def scan_iac(request: Request, body: IaCScanRequest) -> APIResponse:
 
 @router.post("/iac/scan/upload", tags=["IaC"])
 @limiter.limit("20/minute")
-async def scan_iac_upload(request: Request, file: UploadFile) -> APIResponse:
+async def scan_iac_upload(request: Request, file: UploadFile, _: AuthUser) -> APIResponse:
     """Upload a .tf file for static security analysis. Validates MIME, size, and content."""
     from app.scanners.iac import TerraformScanner
     from app.utils.upload_validator import validate_terraform_upload
@@ -361,6 +356,7 @@ async def scan_iac_upload(request: Request, file: UploadFile) -> APIResponse:
 
 @router.get("/attack-paths", tags=["Attack Paths"])
 async def get_attack_paths(
+    _: AuthUser,
     scan_id: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> APIResponse:
@@ -383,7 +379,7 @@ class ChatRequest(_BaseModel):
 
 
 @router.post("/chat", tags=["AI Chat"])
-async def ai_chat(body: ChatRequest) -> APIResponse:
+async def ai_chat(_: AuthUser, body: ChatRequest) -> APIResponse:
     """
     AI Security Copilot — natural language cloud security Q&A.
     Works without GROQ key using rule-based fallback.
@@ -399,3 +395,57 @@ async def ai_chat(body: ChatRequest) -> APIResponse:
         "message": response.message,
         "suggested_questions": response.suggested_questions,
     })
+
+
+# ── Scan Status SSE Stream ────────────────────────────────────────────────────
+
+import asyncio
+import json
+from fastapi.responses import StreamingResponse
+
+
+@router.get("/scans/{scan_id}/stream", tags=["Scans"])
+async def stream_scan_status(
+    scan_id: str,
+    _: AuthUser,
+    db: AsyncSession = Depends(get_db),
+) -> StreamingResponse:
+    """
+    SSE stream for real-time scan status updates.
+    Polls scan every 1s, emits status events, closes when scan completes/fails.
+    """
+    svc = ScanService(db)
+
+    async def event_generator():
+        from app.database import AsyncSessionLocal
+        terminal_states = {"completed", "failed"}
+        while True:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(Scan).where(Scan.id == scan_id))
+                scan = result.scalar_one_or_none()
+                if not scan:
+                    yield f"event: error\ndata: {json.dumps({'error': 'Scan not found'})}\n\n"
+                    return
+                payload = {
+                    "status": scan.status,
+                    "total_findings": scan.total_findings,
+                    "critical_count": scan.critical_count,
+                    "high_count": scan.high_count,
+                    "medium_count": scan.medium_count,
+                    "low_count": scan.low_count,
+                    "completed_at": scan.completed_at.isoformat() if scan.completed_at else None,
+                    "error_message": scan.error_message,
+                }
+                yield f"data: {json.dumps(payload)}\n\n"
+                if scan.status in terminal_states:
+                    return
+            await asyncio.sleep(1.5)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )

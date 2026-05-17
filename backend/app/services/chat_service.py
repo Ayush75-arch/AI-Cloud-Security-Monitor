@@ -81,11 +81,8 @@ class AIChatService:
             return self._fallback_response(user_message)
 
     async def _groq_chat(self, message: str, history: list[dict], current_settings) -> ChatResponse:
-        import httpx
-        headers = {
-            "Authorization": f"Bearer {current_settings.GROQ_API_KEY}",
-            "Content-Type": "application/json",
-        }
+        from app.ai.groq_client import groq_chat_completion
+        from app.utils.exceptions import AIProviderError
 
         messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         for h in history[-10:]:
@@ -96,32 +93,20 @@ class AIChatService:
         messages.append({"role": "user", "content": message})
 
         try:
-            async with httpx.AsyncClient(timeout=60.0, headers=headers) as client:
-                resp = await client.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    json={
-                        "model": current_settings.GROQ_MODEL,
-                        "messages": messages,
-                        "max_tokens": 800,
-                        "temperature": 0.4,
-                    },
-                )
-                resp.raise_for_status()
-                answer = self._parse_groq_response(resp.json())
-                return ChatResponse(
-                    message=answer,
-                    suggested_questions=self._suggest_questions(message),
-                )
-        except httpx.HTTPStatusError as exc:
-            detail = self._groq_error_detail(exc.response)
-            logger.error(
-                "chat_groq_http_error",
-                status_code=exc.response.status_code,
-                detail=detail,
+            payload = await groq_chat_completion(
+                api_key=current_settings.GROQ_API_KEY,
+                model=current_settings.GROQ_MODEL,
+                messages=messages,
+                max_tokens=800,
+                temperature=0.4,
             )
-            return self._provider_error_response(message, exc.response.status_code, detail)
-        except httpx.RequestError as exc:
-            logger.error("chat_groq_connection_error", error=str(exc))
+            answer = self._parse_groq_response(payload)
+            return ChatResponse(
+                message=answer,
+                suggested_questions=self._suggest_questions(message),
+            )
+        except AIProviderError as exc:
+            logger.error("chat_groq_error", error=str(exc))
             return self._provider_unavailable_response(message)
         except Exception as exc:
             logger.error("chat_groq_error", error=str(exc))

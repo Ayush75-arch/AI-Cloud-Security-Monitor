@@ -99,6 +99,8 @@ class Finding(Base):
     ai_attack_scenario: Mapped[str | None] = mapped_column(Text, nullable=True)
     ai_remediation: Mapped[str | None] = mapped_column(Text, nullable=True)
     suppressed_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    fingerprint: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

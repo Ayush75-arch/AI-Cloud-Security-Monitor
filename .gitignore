@@ -5,7 +5,10 @@
 
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
+*.pyc
+*.pyo
 venv/
 .venv/
 
@@ -13,6 +16,8 @@ venv/
 *.log
 *.out
 *.err
+*.err.log
+*.out.log
 
 # Database
 *.db
@@ -32,5 +37,6 @@ dist/
 .DS_Store
 Thumbs.db
 
-*.db
-*.db-journal
+# pytest cache dirs
+pytest-cache-files-*/
+.pytest_cache/
