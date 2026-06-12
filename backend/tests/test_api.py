@@ -157,3 +157,238 @@ async def test_compliance_empty(client):
     data = res.json()["data"]
     assert data["overall_score"] == 0.0
     assert data["frameworks"] == []
+
+
+@pytest.mark.asyncio
+async def test_assets_empty(client):
+    res = await client.get("/api/v1/assets")
+    assert res.status_code == 200
+    assert res.json()["data"] == []
+
+
+@pytest.mark.asyncio
+async def test_attack_paths_empty(client):
+    res = await client.get("/api/v1/attack-paths")
+    assert res.status_code == 200
+
+
+# ── Report Export ─────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_export_findings_csv(client):
+    res = await client.get("/api/v1/reports/findings/csv")
+    assert res.status_code == 200
+    assert "text/csv" in res.headers["content-type"]
+
+
+@pytest.mark.asyncio
+async def test_export_findings_json(client):
+    res = await client.get("/api/v1/reports/findings/json")
+    assert res.status_code == 200
+    data = res.json()
+    assert "data" in data
+
+
+@pytest.mark.asyncio
+async def test_export_compliance_csv(client):
+    res = await client.get("/api/v1/reports/compliance/csv")
+    assert res.status_code == 200
+    assert "text/csv" in res.headers["content-type"]
+
+
+# ── Trends ────────────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_compliance_trend(client):
+    res = await client.get("/api/v1/trends/compliance")
+    assert res.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_finding_trend(client):
+    res = await client.get("/api/v1/trends/findings")
+    assert res.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_security_score_trend(client):
+    res = await client.get("/api/v1/trends/security-score")
+    assert res.status_code == 200
+
+
+# ── Rule Engine Tests ─────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_rule_engine_initialization():
+    from app.rules.engine import ALL_RULES, RuleEngine
+    assert len(ALL_RULES) == 33  # 14 original + 5 RDS + 4 Lambda + 5 CT + 4 KMS + 1 (EC2-003)
+    engine = RuleEngine()
+    assert engine is not None
+
+
+@pytest.mark.asyncio
+async def test_scanner_registry():
+    from app.scanners import SCANNER_REGISTRY
+    assert "s3" in SCANNER_REGISTRY
+    assert "iam" in SCANNER_REGISTRY
+    assert "ec2" in SCANNER_REGISTRY
+    assert "vpc" in SCANNER_REGISTRY
+    assert "rds" in SCANNER_REGISTRY
+    assert "lambda" in SCANNER_REGISTRY
+    assert "cloudtrail" in SCANNER_REGISTRY
+    assert "kms" in SCANNER_REGISTRY
+
+
+@pytest.mark.asyncio
+async def test_supported_services():
+    from app.utils.constants import SUPPORTED_SERVICES
+    assert len(SUPPORTED_SERVICES) == 8
+    assert "s3" in SUPPORTED_SERVICES
+    assert "rds" in SUPPORTED_SERVICES
+    assert "lambda" in SUPPORTED_SERVICES
+    assert "cloudtrail" in SUPPORTED_SERVICES
+    assert "kms" in SUPPORTED_SERVICES
+
+
+@pytest.mark.asyncio
+async def test_compliance_frameworks():
+    from app.utils.constants import ComplianceFramework
+    frameworks = [f.value for f in ComplianceFramework]
+    assert "CIS" in frameworks
+    assert "NIST" in frameworks
+    assert "PCI-DSS" in frameworks
+    assert "SOC2" in frameworks
+    assert "ISO-27001" in frameworks
+    assert "GDPR" in frameworks
+
+
+@pytest.mark.asyncio
+async def test_asset_types():
+    from app.utils.constants import AssetType
+    types = [a.value for a in AssetType]
+    assert "rds_instance" in types
+    assert "lambda_function" in types
+    assert "cloudtrail_trail" in types
+    assert "kms_key" in types
+
+
+# ── S3 Rule Evaluation ────────────────────────────────────────────────────────
+
+def test_s3_public_access_block_rule():
+    from app.rules.s3_rules import S3PublicAccessBlockRule
+    rule = S3PublicAccessBlockRule()
+    healthy = {"PublicAccessBlockConfiguration": {
+        "BlockPublicAcls": True, "IgnorePublicAcls": True,
+        "BlockPublicPolicy": True, "RestrictPublicBuckets": True,
+    }}
+    assert rule.evaluate(healthy) is None
+    unhealthy = {"PublicAccessBlockConfiguration": None}
+    assert rule.evaluate(unhealthy) is not None
+
+
+# ── KMS Rule Evaluation ───────────────────────────────────────────────────────
+
+def test_kms_key_rotation_rule():
+    from app.rules.kms_rules import KMSKeyRotationRule
+    rule = KMSKeyRotationRule()
+    assert rule.evaluate({"KeyRotationEnabled": False}) is not None
+    assert rule.evaluate({"KeyRotationEnabled": True}) is None
+
+
+# ── RDS Rule Evaluation ───────────────────────────────────────────────────────
+
+def test_rds_encryption_rule():
+    from app.rules.rds_rules import RDSEncryptionDisabledRule
+    rule = RDSEncryptionDisabledRule()
+    assert rule.evaluate({"StorageEncrypted": False}) is not None
+    assert rule.evaluate({"StorageEncrypted": True}) is None
+
+
+def test_rds_public_access_rule():
+    from app.rules.rds_rules import RDSPubliclyAccessibleRule
+    rule = RDSPubliclyAccessibleRule()
+    assert rule.evaluate({"PubliclyAccessible": True}) is not None
+    assert rule.evaluate({"PubliclyAccessible": False}) is None
+
+
+def test_rds_backup_retention_rule():
+    from app.rules.rds_rules import RDSBackupRetentionRule
+    rule = RDSBackupRetentionRule()
+    assert rule.evaluate({"BackupRetentionPeriod": 1}) is not None
+    assert rule.evaluate({"BackupRetentionPeriod": 30}) is None
+
+
+# ── Lambda Rule Evaluation ────────────────────────────────────────────────────
+
+def test_lambda_deprecated_runtime_rule():
+    from app.rules.lambda_rules import LambdaRuntimeDeprecatedRule
+    rule = LambdaRuntimeDeprecatedRule()
+    assert rule.evaluate({"Runtime": "python2.7"}) is not None
+    assert rule.evaluate({"Runtime": "python3.11"}) is None
+
+
+def test_lambda_timeout_rule():
+    from app.rules.lambda_rules import LambdaTimeoutRule
+    rule = LambdaTimeoutRule()
+    assert rule.evaluate({"Timeout": 900}) is not None
+    assert rule.evaluate({"Timeout": 30}) is None
+
+
+# ── CloudTrail Rule Evaluation ────────────────────────────────────────────────
+
+def test_cloudtrail_no_trails_rule():
+    from app.rules.cloudtrail_rules import CloudTrailNoTrailsRule
+    rule = CloudTrailNoTrailsRule()
+    assert rule.evaluate({"TrailsExist": False}) is not None
+    assert rule.evaluate({"TrailsExist": True}) is None
+
+
+def test_cloudtrail_multi_region_rule():
+    from app.rules.cloudtrail_rules import CloudTrailNotMultiRegionRule
+    rule = CloudTrailNotMultiRegionRule()
+    assert rule.evaluate({"IsMultiRegionTrail": False}) is not None
+    assert rule.evaluate({"IsMultiRegionTrail": True}) is None
+
+
+# ── Notification Service ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_notification_service_initialization():
+    from app.services.notification_service import NotificationService
+    svc = NotificationService()
+    assert svc is not None
+
+
+@pytest.mark.asyncio
+async def test_slack_message_formatting():
+    from app.services.notification_service import SlackChannel
+    channel = SlackChannel(webhook_url="https://hooks.slack.com/test")
+    findings = [
+        {"severity": "critical", "rule_id": "S3-001", "title": "Test", "asset_name": "bucket", "description": "Test finding"},
+    ]
+    msg = channel.format_message(findings)
+    assert "blocks" in msg
+    assert len(msg["blocks"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_webhook_payload_formatting():
+    from app.services.notification_service import WebhookChannel
+    channel = WebhookChannel(url="https://example.com/webhook")
+    findings = [
+        {"severity": "critical", "rule_id": "S3-001", "title": "Test", "asset_name": "bucket", "description": "Test"},
+    ]
+    payload = channel.format_payload(findings)
+    assert payload["event"] == "security_findings"
+    assert payload["critical_count"] == 1
+
+
+# ── Trend Service ─────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_trend_service_initialization(client):
+    from app.services.trend_service import TrendService
+    from app.database import AsyncSessionLocal
+    async with AsyncSessionLocal() as db:
+        svc = TrendService(db)
+        assert svc is not None

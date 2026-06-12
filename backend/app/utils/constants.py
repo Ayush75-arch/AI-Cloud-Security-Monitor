@@ -35,6 +35,10 @@ class AssetType(str, Enum):
     VPC = "vpc"
     SUBNET = "subnet"
     INTERNET_GATEWAY = "internet_gateway"
+    RDS_INSTANCE = "rds_instance"
+    LAMBDA_FUNCTION = "lambda_function"
+    CLOUDTRAIL_TRAIL = "cloudtrail_trail"
+    KMS_KEY = "kms_key"
 
 
 class ComplianceFramework(str, Enum):
@@ -43,6 +47,7 @@ class ComplianceFramework(str, Enum):
     PCI_DSS = "PCI-DSS"
     ISO_27001 = "ISO-27001"
     GDPR = "GDPR"
+    SOC2 = "SOC2"
 
 
 # Severity → numeric weight for risk score computation
@@ -54,7 +59,7 @@ SEVERITY_WEIGHTS: dict[str, int] = {
 }
 
 # Services supported by scanner
-SUPPORTED_SERVICES = ["s3", "iam", "ec2", "vpc"]
+SUPPORTED_SERVICES = ["s3", "iam", "ec2", "vpc", "rds", "lambda", "cloudtrail", "kms"]
 
 # ── Compliance control mappings ───────────────────────────────────────────────
 # Extended mappings used by the compliance service to score ISO 27001 and GDPR.
@@ -62,35 +67,35 @@ SUPPORTED_SERVICES = ["s3", "iam", "ec2", "vpc"]
 
 EXTENDED_COMPLIANCE: dict[str, dict[str, str]] = {
     "S3-001": {
-        "ISO-27001": "A.13.1.3",   # Segregation in networks
-        "GDPR": "Art.32",           # Security of processing
+        "ISO-27001": "A.13.1.3",
+        "GDPR": "Art.32",
     },
     "S3-002": {
-        "ISO-27001": "A.10.1.1",   # Policy on use of cryptographic controls
+        "ISO-27001": "A.10.1.1",
         "GDPR": "Art.32",
     },
     "S3-003": {
-        "ISO-27001": "A.12.3.1",   # Information backup
-        "GDPR": "Art.5.1.f",        # Integrity and confidentiality
+        "ISO-27001": "A.12.3.1",
+        "GDPR": "Art.5.1.f",
     },
     "S3-004": {
-        "ISO-27001": "A.12.4.1",   # Event logging
-        "GDPR": "Art.30",           # Records of processing activities
+        "ISO-27001": "A.12.4.1",
+        "GDPR": "Art.30",
     },
     "IAM-001": {
-        "ISO-27001": "A.9.2.3",    # Management of privileged access rights
-        "GDPR": "Art.25",           # Data protection by design
+        "ISO-27001": "A.9.2.3",
+        "GDPR": "Art.25",
     },
     "IAM-002": {
-        "ISO-27001": "A.9.4.2",    # Secure log-on procedures
+        "ISO-27001": "A.9.4.2",
         "GDPR": "Art.32",
     },
     "IAM-003": {
-        "ISO-27001": "A.9.4.3",    # Password management system
+        "ISO-27001": "A.9.4.3",
         "GDPR": "Art.32",
     },
     "EC2-001": {
-        "ISO-27001": "A.13.1.1",   # Network controls
+        "ISO-27001": "A.13.1.1",
         "GDPR": "Art.32",
     },
     "EC2-002": {
@@ -98,11 +103,55 @@ EXTENDED_COMPLIANCE: dict[str, dict[str, str]] = {
         "GDPR": "Art.32",
     },
     "VPC-001": {
-        "ISO-27001": "A.12.4.1",   # Event logging
+        "ISO-27001": "A.12.4.1",
         "GDPR": "Art.30",
     },
     "VPC-002": {
-        "ISO-27001": "A.13.1.2",   # Security of network services
+        "ISO-27001": "A.13.1.2",
         "GDPR": "Art.25",
+    },
+    "RDS-001": {
+        "ISO-27001": "A.10.1.1",
+        "GDPR": "Art.32",
+    },
+    "RDS-002": {
+        "ISO-27001": "A.13.1.3",
+        "GDPR": "Art.32",
+    },
+    "RDS-003": {
+        "ISO-27001": "A.12.3.1",
+        "GDPR": "Art.32",
+    },
+    "RDS-004": {
+        "ISO-27001": "A.12.3.1",
+        "GDPR": "Art.32",
+    },
+    "CT-001": {
+        "ISO-27001": "A.12.4.1",
+        "GDPR": "Art.30",
+    },
+    "CT-002": {
+        "ISO-27001": "A.12.4.1",
+        "GDPR": "Art.30",
+    },
+    "CT-003": {
+        "ISO-27001": "A.12.4.1",
+        "GDPR": "Art.30",
+    },
+    "CT-005": {
+        "ISO-27001": "A.12.4.1",
+        "GDPR": "Art.30",
+    },
+    "KMS-001": {
+        "ISO-27001": "A.10.1.1",
+        "GDPR": "Art.32",
+    },
+    "LAMBDA-001": {
+        "ISO-27001": "A.9.2.3",
+        "GDPR": "Art.25",
+    },
+    "LAMBDA-002": {
+        "ISO-27001": "A.12.6.1",
+        "GDPR": "Art.32",
     },
 }

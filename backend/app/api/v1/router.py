@@ -449,3 +449,167 @@ async def stream_scan_status(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── Report Export ─────────────────────────────────────────────────────────────
+
+from fastapi.responses import PlainTextResponse, StreamingResponse as FileStreamingResponse
+
+
+@router.get("/reports/findings/csv", tags=["Reports"])
+async def export_findings_csv(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> PlainTextResponse:
+    from app.services.report_service import ReportService
+    csv_content = await ReportService(db).export_findings_csv(scan_id=scan_id)
+    return PlainTextResponse(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=findings_{scan_id or 'all'}.csv"},
+    )
+
+
+@router.get("/reports/findings/json", tags=["Reports"])
+async def export_findings_json(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.report_service import ReportService
+    json_content = await ReportService(db).export_findings_json(scan_id=scan_id)
+    return APIResponse(data=json.loads(json_content), meta={"format": "json"})
+
+
+@router.get("/reports/compliance/csv", tags=["Reports"])
+async def export_compliance_csv(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> PlainTextResponse:
+    from app.services.report_service import ReportService
+    csv_content = await ReportService(db).export_compliance_csv(scan_id=scan_id)
+    return PlainTextResponse(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename=compliance_{scan_id or 'all'}.csv"},
+    )
+
+
+@router.get("/reports/scan/{scan_id}/full", tags=["Reports"])
+async def export_full_report(
+    scan_id: str,
+    _: AuthUser,
+    db: AsyncSession = Depends(get_db),
+) -> PlainTextResponse:
+    from app.services.report_service import ReportService
+    report = await ReportService(db).export_full_report_json(scan_id=scan_id)
+    return PlainTextResponse(
+        content=report,
+        media_type="application/json",
+        headers={"Content-Disposition": f"attachment; filename=scan_report_{scan_id}.json"},
+    )
+
+
+# ── Security Trends ───────────────────────────────────────────────────────────
+
+@router.get("/trends/compliance", tags=["Trends"])
+async def compliance_trend(
+    _: AuthUser,
+    framework: str | None = None,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.trend_service import TrendService
+    data = await TrendService(db).get_compliance_trend(framework=framework, limit=limit)
+    return APIResponse(data=data, meta={"count": len(data)})
+
+
+@router.get("/trends/findings", tags=["Trends"])
+async def finding_trend(
+    _: AuthUser,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.trend_service import TrendService
+    data = await TrendService(db).get_finding_trend(limit=limit)
+    return APIResponse(data=data, meta={"count": len(data)})
+
+
+@router.get("/trends/security-score", tags=["Trends"])
+async def security_score_trend(
+    _: AuthUser,
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.trend_service import TrendService
+    data = await TrendService(db).get_security_score_trend(limit=limit)
+    return APIResponse(data=data, meta={"count": len(data)})
+
+
+# ── Notifications ─────────────────────────────────────────────────────────────
+
+class NotificationTestRequest(_BaseModel):
+    channel: str = "slack"  # slack, webhook, email
+
+
+@router.post("/notifications/test", tags=["Notifications"])
+async def test_notification(
+    body: NotificationTestRequest,
+    _: AuthUser,
+) -> APIResponse:
+    from app.services.notification_service import NotificationService
+    test_findings = [
+        {
+            "rule_id": "TEST-001",
+            "title": "Test Alert - No Action Required",
+            "severity": "low",
+            "asset_name": "test-bucket",
+            "description": "This is a test notification from CloudGuard-AI.",
+        }
+    ]
+    svc = NotificationService()
+    sent = await svc.send_alert(test_findings)
+    return APIResponse(data={"channels_available": len(svc._channels), "sent": sent})
+
+
+@router.post("/notifications/send", tags=["Notifications"])
+async def send_notifications(
+    _: AuthUser,
+    severity_threshold: str = "high",
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.notification_service import NotificationService
+    from app.models import Finding
+    from app.utils.constants import FindingStatus
+
+    sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3}
+    threshold = sev_order.get(severity_threshold, 1)
+
+    result = await db.execute(
+        select(Finding).where(
+            Finding.status == FindingStatus.OPEN,
+        ).order_by(Finding.created_at.desc()).limit(50)
+    )
+    findings = result.scalars().all()
+
+    filtered = [
+        {
+            "id": f.id,
+            "rule_id": f.rule_id,
+            "title": f.title,
+            "severity": f.severity,
+            "asset_name": f.asset.asset_name if f.asset else "unknown",
+            "description": f.description,
+        }
+        for f in findings
+        if sev_order.get(f.severity, 99) <= threshold
+    ]
+
+    if not filtered:
+        return APIResponse(data={"sent": 0, "message": "No findings matching threshold."})
+
+    svc = NotificationService()
+    sent = await svc.send_alert(filtered)
+    return APIResponse(data={"sent": sent, "total_matching": len(filtered)})

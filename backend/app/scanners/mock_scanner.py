@@ -111,4 +111,84 @@ class MockScanner(BaseScanner):
                     "RouteTables": [],
                     "NetworkAcls": [],
                 }),
+            # RDS
+            ScanResult(AssetType.RDS_INSTANCE, "arn:aws:rds:us-east-1:123456789012:db:prod-db",
+                "prod-db", "us-east-1", {
+                    "DBInstanceIdentifier": "prod-db",
+                    "StorageEncrypted": False,  # triggers RDS-001
+                    "PubliclyAccessible": False,
+                    "DeletionProtection": False,  # triggers RDS-003
+                    "BackupRetentionPeriod": 1,  # triggers RDS-004
+                    "AutoMinorVersionUpgrade": False,  # triggers RDS-005
+                    "MultiAZ": True,
+                    "Engine": "postgres",
+                    "EngineVersion": "15.4",
+                }),
+            ScanResult(AssetType.RDS_INSTANCE, "arn:aws:rds:us-east-1:123456789012:db:staging-db",
+                "staging-db", "us-east-1", {
+                    "DBInstanceIdentifier": "staging-db",
+                    "StorageEncrypted": True,
+                    "PubliclyAccessible": True,  # triggers RDS-002
+                    "DeletionProtection": True,
+                    "BackupRetentionPeriod": 35,
+                    "AutoMinorVersionUpgrade": True,
+                    "MultiAZ": False,
+                    "Engine": "mysql",
+                    "EngineVersion": "8.0",
+                }),
+            # Lambda
+            ScanResult(AssetType.LAMBDA_FUNCTION, "arn:aws:lambda:us-east-1:123456789012:function:data-processor",
+                "data-processor", "us-east-1", {
+                    "FunctionName": "data-processor",
+                    "Runtime": "python3.8",  # triggers LAMBDA-002
+                    "Role": "arn:aws:iam::123456789012:role/lambda-role",
+                    "Timeout": 900,  # triggers LAMBDA-004
+                    "MemorySize": 512,
+                    "VpcConfig": {"SubnetIds": ["subnet-123"], "SecurityGroupIds": ["sg-123"]},
+                    "Environment": {"Variables": {"DB_URL": "postgresql://localhost/mydb"}},
+                }),
+            ScanResult(AssetType.LAMBDA_FUNCTION, "arn:aws:lambda:us-east-1:123456789012:function:api-handler",
+                "api-handler", "us-east-1", {
+                    "FunctionName": "api-handler",
+                    "Runtime": "nodejs18.x",
+                    "Role": "arn:aws:iam::123456789012:role/lambda-role",
+                    "Timeout": 30,
+                    "MemorySize": 256,
+                    "VpcConfig": {},
+                }),
+            # CloudTrail
+            ScanResult(AssetType.CLOUDTRAIL_TRAIL, "arn:aws:cloudtrail:us-east-1:123456789012:trail/management-events",
+                "management-events", "us-east-1", {
+                    "Name": "management-events",
+                    "TrailsExist": True,
+                    "IsMultiRegionTrail": False,  # triggers CT-002
+                    "LogFileValidationEnabled": False,  # triggers CT-003
+                    "KmsKeyId": "",  # triggers CT-004
+                    "S3BucketName": "cloudtrail-logs-123456789012",
+                    "IncludeGlobalServiceEvents": True,
+                    "Status": {"IsLogging": True},
+                }),
+            # KMS
+            ScanResult(AssetType.KMS_KEY, "arn:aws:kms:us-east-1:123456789012:key/mrk-1234567890abcdef0",
+                "mrk-1234567890abcdef0", "us-east-1", {
+                    "KeyId": "mrk-1234567890abcdef0",
+                    "KeyState": "Enabled",
+                    "KeyUsage": "ENCRYPT_DECRYPT",
+                    "KeyManager": "CUSTOMER",
+                    "Enabled": True,
+                    "KeyRotationEnabled": False,  # triggers KMS-001
+                    "MultiRegion": True,
+                    "Description": "Encryption key for prod data",
+                }),
+            ScanResult(AssetType.KMS_KEY, "arn:aws:kms:us-east-1:123456789012:key/abcdef0123456789",
+                "abcdef0123456789", "us-east-1", {
+                    "KeyId": "abcdef0123456789",
+                    "KeyState": "Disabled",  # triggers KMS-003
+                    "KeyUsage": "ENCRYPT_DECRYPT",
+                    "KeyManager": "AWS",  # triggers KMS-004
+                    "Enabled": False,
+                    "KeyRotationEnabled": False,
+                    "MultiRegion": False,
+                    "Description": "AWS managed key for S3",
+                }),
         ]

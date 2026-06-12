@@ -87,6 +87,17 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
 
+    # ── Notifications ─────────────────────────────────────────────────────
+    SLACK_WEBHOOK_URL: str = ""
+    CUSTOM_WEBHOOK_URL: str = ""
+    CUSTOM_WEBHOOK_HEADERS: dict = {}
+    SMTP_SERVER: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    EMAIL_FROM: str = "cloudguard@localhost"
+    EMAIL_TO: str = ""
+
     @field_validator("DEBUG", mode="before")
     @classmethod
     def parse_debug(cls, value):

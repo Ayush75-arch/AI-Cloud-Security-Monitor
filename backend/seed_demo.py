@@ -52,6 +52,17 @@ ASSETS = [
     # VPC
     {"id": uid(), "type": "vpc",            "aid": "vpc-0123456789abc", "name": "prod-vpc",         "region": "us-east-1"},
     {"id": uid(), "type": "vpc",            "aid": "vpc-default-useast","name": "default",          "region": "us-east-1"},
+    # RDS
+    {"id": uid(), "type": "rds_instance",   "aid": "arn:aws:rds:us-east-1:123456789012:db:prod-db",        "name": "prod-db",      "region": "us-east-1"},
+    {"id": uid(), "type": "rds_instance",   "aid": "arn:aws:rds:us-east-1:123456789012:db:staging-db",     "name": "staging-db",   "region": "us-east-1"},
+    # Lambda
+    {"id": uid(), "type": "lambda_function","aid": "arn:aws:lambda:us-east-1:123456789012:function:data-processor", "name": "data-processor", "region": "us-east-1"},
+    {"id": uid(), "type": "lambda_function","aid": "arn:aws:lambda:us-east-1:123456789012:function:api-handler",    "name": "api-handler",    "region": "us-east-1"},
+    # CloudTrail
+    {"id": uid(), "type": "cloudtrail_trail","aid": "arn:aws:cloudtrail:us-east-1:123456789012:trail/management-events", "name": "management-events", "region": "us-east-1"},
+    # KMS
+    {"id": uid(), "type": "kms_key",        "aid": "arn:aws:kms:us-east-1:123456789012:key/mrk-1234567890abcdef0", "name": "prod-encryption-key", "region": "us-east-1"},
+    {"id": uid(), "type": "kms_key",        "aid": "arn:aws:kms:us-east-1:123456789012:key/abcdef0123456789",       "name": "aws-s3-key",          "region": "us-east-1"},
 ]
 
 # Map name → id for finding references
@@ -170,6 +181,120 @@ FINDINGS_RAW = [
         "ai_attack": "Attacker gains write access and modifies a JavaScript file to inject a keylogger or crypto-miner. Without versioning, the clean version cannot be quickly restored.",
         "ai_remediation": "1. Enable S3 versioning.\n2. Set up CloudFront cache invalidation alerts for unexpected changes.\n3. Consider S3 Object Lock with a 24-hour retention for CDN assets.\n4. Enable S3 event notifications for PutObject on this bucket."
     },
+    # RDS
+    {
+        "asset": "prod-db", "rule_id": "RDS-001", "severity": "high",
+        "title": "RDS Instance Storage Encryption Disabled",
+        "description": "Production database storage encryption is disabled, leaving data at risk.",
+        "compliance": {"CIS": "2.1.1", "NIST": "SC-28", "PCI_DSS": "3.5", "SOC2": "CC6.1"},
+        "ai_explanation": "The production database stores customer PII but lacks encryption at rest. Anyone with physical access to the underlying storage (AWS rogue insider, hardware seizure) can read the data.",
+        "ai_attack": "An attacker who gains AWS console access via compromised credentials can create a snapshot of the unencrypted RDS instance and restore it to their own account, exfiltrating the entire database.",
+        "ai_remediation": "1. Enable storage encryption on the RDS instance (requires snapshot copy/restore).\n2. Use KMS customer-managed keys for RDS encryption.\n3. Enable encryption by default for all new RDS instances.\n4. Audit all existing RDS instances for encryption status."
+    },
+    {
+        "asset": "staging-db", "rule_id": "RDS-002", "severity": "critical",
+        "title": "RDS Instance Publicly Accessible",
+        "description": "Staging database is publicly accessible from the internet.",
+        "compliance": {"CIS": "2.1.5", "NIST": "SC-7", "PCI_DSS": "1.3.2", "SOC2": "CC6.1"},
+        "ai_explanation": "A publicly accessible database is directly reachable from the internet. Automated scanners constantly probe for open database ports (3306, 5432, 1433).",
+        "ai_attack": "Attacker scans AWS IP ranges for open MySQL port 3306, finds the staging database. If weak credentials are used, the attacker dumps the database contents and uses them to pivot to production systems.",
+        "ai_remediation": "1. Set PubliclyAccessible to False immediately.\n2. Move the RDS instance to a private subnet with no internet route.\n3. Use AWS Systems Manager Session Manager for database access.\n4. Enable VPC Flow Logs to detect any data exfiltration."
+    },
+    {
+        "asset": "prod-db", "rule_id": "RDS-003", "severity": "high",
+        "title": "RDS Instance Deletion Protection Disabled",
+        "description": "Production database can be accidentally or maliciously deleted without protection.",
+        "compliance": {"NIST": "CP-9", "SOC2": "CC6.1"},
+        "ai_explanation": "Without deletion protection, a single API call (or a console mistake) can permanently destroy the production database.",
+        "ai_attack": "A disgruntled employee with database write access calls DeleteDBInstance. Without deletion protection, the database is immediately marked for deletion, causing full application outage and potential data loss.",
+        "ai_remediation": "1. Enable DeletionProtection on all production RDS instances.\n2. Add IAM policy conditions denying rds:DeleteDBInstance without MFA.\n3. Enable CloudTrail to log all RDS deletion API calls.\n4. Set up CloudWatch alarms for DeleteDBInstance API calls."
+    },
+    {
+        "asset": "prod-db", "rule_id": "RDS-004", "severity": "medium",
+        "title": "RDS Instance Backup Retention Period Too Short",
+        "description": "Backup retention is 1 day, far below the recommended 7-day minimum.",
+        "compliance": {"CIS": "2.1.3", "NIST": "CP-9", "PCI_DSS": "10.5.1", "SOC2": "CC6.1"},
+        "ai_explanation": "With only 1 day of backup retention, a failure or corruption that goes unnoticed for more than 24 hours results in permanent data loss.",
+        "ai_attack": "A ransomware attack encrypts the database at 5 PM Friday. By Monday morning, all pre-attack backup snapshots have expired, leaving only encrypted data and no recovery path.",
+        "ai_remediation": "1. Increase BackupRetentionPeriod to at least 7 days (30+ for production).\n2. Enable automated backups with a defined window.\n3. Test point-in-time recovery (PITR) regularly.\n4. Export daily snapshots to a separate AWS account for disaster recovery."
+    },
+    {
+        "asset": "prod-db", "rule_id": "RDS-005", "severity": "low",
+        "title": "RDS Instance Auto Minor Version Upgrade Disabled",
+        "description": "Automatic minor version upgrades are disabled, missing critical security patches.",
+        "compliance": {"NIST": "SI-2", "SOC2": "CC7.1"},
+        "ai_explanation": "Minor version upgrades include security patches. Without auto-upgrades, the database may run with known vulnerabilities for weeks or months.",
+        "ai_remediation": "1. Enable AutoMinorVersionUpgrade on the RDS instance.\n2. Schedule maintenance windows during off-peak hours.\n3. Monitor RDS events for upgrade notifications."
+    },
+    # Lambda
+    {
+        "asset": "data-processor", "rule_id": "LAMBDA-002", "severity": "high",
+        "title": "Lambda Function Uses Deprecated Runtime",
+        "description": "Function uses Python 3.8 which is end-of-life and no longer receives security patches.",
+        "compliance": {"NIST": "SI-2", "SOC2": "CC7.1"},
+        "ai_explanation": "Deprecated runtimes do not receive security updates. Vulnerabilities discovered in Python 3.8 will never be patched, creating a permanent attack surface.",
+        "ai_remediation": "1. Migrate the function to a supported runtime (Python 3.11+).\n2. Test thoroughly for compatibility issues.\n3. Set up runtime expiry notifications via AWS Health events.\n4. Use AWS Config rule 'lambda-runtime-check' to prevent future drift."
+    },
+    {
+        "asset": "data-processor", "rule_id": "LAMBDA-004", "severity": "low",
+        "title": "Lambda Function Timeout Exceeds Best Practice",
+        "description": "Function timeout is 900 seconds, exceeding the recommended 300-second limit.",
+        "compliance": {},
+        "ai_explanation": "Long-running Lambda functions increase costs, consume concurrency slots, and may indicate inefficient code that should be refactored.",
+        "ai_remediation": "1. Reduce function timeout to 300 seconds or less.\n2. Refactor long-running operations into Step Functions.\n3. Use reserved concurrency to prevent throttling."
+    },
+    # CloudTrail
+    {
+        "asset": "management-events", "rule_id": "CT-002", "severity": "high",
+        "title": "CloudTrail Trail Not Multi-Region",
+        "description": "The management-events trail only captures events in us-east-1, not all regions.",
+        "compliance": {"CIS": "3.2", "NIST": "AU-12", "PCI_DSS": "10.2.1", "SOC2": "CC6.1"},
+        "ai_explanation": "Without multi-region trails, API activity in any other region is completely invisible. An attacker can operate in us-west-2 with no audit trail.",
+        "ai_attack": "Attacker compromises an IAM key and launches EC2 crypto-mining instances in eu-central-1. No CloudTrail trail covers this region, so the unauthorized activity goes completely undetected.",
+        "ai_remediation": "1. Enable multi-region trail configuration.\n2. Ensure IncludeGlobalServiceEvents is enabled.\n3. Create an organization trail for multi-account visibility.\n4. Set up CloudWatch alarms for new region activity."
+    },
+    {
+        "asset": "management-events", "rule_id": "CT-003", "severity": "medium",
+        "title": "CloudTrail Log File Validation Not Enabled",
+        "description": "Log file validation is disabled, allowing potential log tampering.",
+        "compliance": {"CIS": "3.4", "NIST": "AU-2", "PCI_DSS": "10.5.2", "SOC2": "CC6.1"},
+        "ai_explanation": "Without log file validation, an attacker who gains access to the S3 log bucket can modify or delete log files without detection.",
+        "ai_remediation": "1. Enable LogFileValidation on all trails.\n2. Use CloudTrail digest files to validate integrity.\n3. Restrict access to the CloudTrail S3 bucket with least privilege."
+    },
+    {
+        "asset": "management-events", "rule_id": "CT-004", "severity": "low",
+        "title": "CloudTrail Logs Not Encrypted with KMS",
+        "description": "CloudTrail logs use S3-managed SSE-S3 encryption instead of KMS.",
+        "compliance": {"CIS": "3.7", "NIST": "SC-28", "PCI_DSS": "3.5"},
+        "ai_explanation": "S3-managed encryption provides less granular control over access. KMS enables key rotation, audit trails, and fine-grained permissions.",
+        "ai_remediation": "1. Update the trail to use a KMS key for log encryption.\n2. Create a dedicated KMS key for CloudTrail with least-privilege policy.\n3. Enable key rotation on the KMS key."
+    },
+    # KMS
+    {
+        "asset": "prod-encryption-key", "rule_id": "KMS-001", "severity": "medium",
+        "title": "KMS Customer-Managed Key Rotation Disabled",
+        "description": "Automatic yearly key rotation is not enabled on the production encryption key.",
+        "compliance": {"CIS": "3.8", "NIST": "SC-28", "PCI_DSS": "3.6.4", "SOC2": "CC6.1"},
+        "ai_explanation": "Without rotation, a compromised key exposes all data ever encrypted with it. Regular rotation limits the window of exposure.",
+        "ai_attack": "An attacker who obtains the KMS key via a misconfigured IAM policy can decrypt all data encrypted under that key, past and present.",
+        "ai_remediation": "1. Enable automatic key rotation (annual).\n2. For workloads requiring frequent rotation, implement custom rotation with Lambda.\n3. Use CloudWatch Events to alert on key rotation status changes."
+    },
+    {
+        "asset": "aws-s3-key", "rule_id": "KMS-003", "severity": "medium",
+        "title": "KMS Key Is Disabled",
+        "description": "KMS key abcdef0123456789 is in Disabled state, causing encryption failures.",
+        "compliance": {},
+        "ai_explanation": "A disabled KMS key causes all dependent services to fail on any encrypt or decrypt operation. This can cause silent data corruption or application errors.",
+        "ai_remediation": "1. Re-enable the key if it is still needed.\n2. If the key is intentionally retired, verify no resources depend on it.\n3. Set up CloudWatch alarms for KMS key state changes."
+    },
+    {
+        "asset": "aws-s3-key", "rule_id": "KMS-004", "severity": "low",
+        "title": "KMS Key Is AWS-Managed",
+        "description": "AWS-managed key lacks granular control, rotation policies, and audit capabilities.",
+        "compliance": {"CIS": "3.7", "SOC2": "CC6.1"},
+        "ai_explanation": "AWS-managed keys simplify key management but sacrifice control. Customer-managed keys enable custom rotation, cross-account access, and detailed audit trails.",
+        "ai_remediation": "1. Replace AWS-managed keys with customer-managed keys for production data.\n2. Configure automatic key rotation.\n3. Implement key policies with least-privilege access."
+    },
 ]
 
 # ── Compliance data ───────────────────────────────────────────────────────────
@@ -239,6 +364,22 @@ COMPLIANCE = [
             "8.2.1": {"status": "PASS"},
         }
     },
+    {
+        "framework": "SOC2",
+        "score": 50.0,
+        "passed": 4,
+        "failed": 4,
+        "details": {
+            "CC6.1": {"status": "FAIL", "rule_id": "RDS-001", "title": "Storage Encryption", "severity": "high"},
+            "CC7.1": {"status": "FAIL", "rule_id": "LAMBDA-002", "title": "Deprecated Runtime", "severity": "high"},
+            "CC6.1": {"status": "FAIL", "rule_id": "KMS-001", "title": "Key Rotation", "severity": "medium"},
+            "CC6.1": {"status": "FAIL", "rule_id": "CT-002", "title": "Multi-Region Trail", "severity": "high"},
+            "CC6.1": {"status": "PASS"},
+            "CC6.1": {"status": "PASS"},
+            "CC7.1": {"status": "PASS"},
+            "CC7.2": {"status": "PASS"},
+        }
+    },
 ]
 
 # ── Seed function ─────────────────────────────────────────────────────────────
@@ -256,7 +397,7 @@ async def seed():
             status="completed",
             account_id="123456789012",
             region="us-east-1",
-            services=["s3", "iam", "ec2", "vpc"],
+            services=["s3", "iam", "ec2", "vpc", "rds", "lambda", "cloudtrail", "kms"],
             triggered_by="demo-seeder",
             started_at=ago(hours=1),
             completed_at=ago(minutes=45),
@@ -324,7 +465,7 @@ async def seed():
     Scan ID : {SCAN_ID}
     Assets  : {len(ASSETS)}
     Findings: {len(FINDINGS_RAW)} ({sum(1 for f in FINDINGS_RAW if f['severity']=='critical')}C / {sum(1 for f in FINDINGS_RAW if f['severity']=='high')}H / {sum(1 for f in FINDINGS_RAW if f['severity']=='medium')}M / {sum(1 for f in FINDINGS_RAW if f['severity']=='low')}L)
-    Compliance: CIS 62.5% · NIST 70% · PCI-DSS 55%
+    Compliance: CIS 62.5% · NIST 70% · PCI-DSS 55% · SOC2 50.0%
 
 →  Open http://localhost:5173 to see the dashboard
 →  Or hit http://localhost:8000/api/v1/dashboard/stats

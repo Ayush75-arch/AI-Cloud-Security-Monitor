@@ -6,6 +6,13 @@ returns findings. Zero engine changes needed to add new rules.
 from typing import Any
 
 from app.rules.base_rule import BaseRule, RuleFinding
+from app.rules.cloudtrail_rules import (
+    CloudTrailKMSEncryptionRule,
+    CloudTrailLogValidationRule,
+    CloudTrailNoTrailsRule,
+    CloudTrailNotLoggingRule,
+    CloudTrailNotMultiRegionRule,
+)
 from app.rules.ec2_vpc_rules import (
     SGAllTrafficRule,
     SGUnrestrictedRDPRule,
@@ -18,6 +25,25 @@ from app.rules.iam_rules import (
     IAMRootAccountUsageRule,
     IAMUserMFARule,
     IAMWildcardPolicyRule,
+)
+from app.rules.kms_rules import (
+    KMSAwsManagedKeyRule,
+    KMSDisabledKeyRule,
+    KMSKeyRotationRule,
+    KMSScheduledDeletionRule,
+)
+from app.rules.lambda_rules import (
+    LambdaPublicEventInvokeRule,
+    LambdaRuntimeDeprecatedRule,
+    LambdaTimeoutRule,
+    LambdaVPCNoInternetRule,
+)
+from app.rules.rds_rules import (
+    RDSBackupRetentionRule,
+    RDSDeletionProtectionRule,
+    RDSEncryptionDisabledRule,
+    RDSMinorUpgradeRule,
+    RDSPubliclyAccessibleRule,
 )
 from app.rules.s3_rules import (
     S3EncryptionRule,
@@ -54,6 +80,28 @@ ALL_RULES: list[BaseRule] = [
     # VPC
     VPCFlowLogsRule(),
     VPCDefaultSecurityGroupRule(),
+    # RDS
+    RDSEncryptionDisabledRule(),
+    RDSPubliclyAccessibleRule(),
+    RDSDeletionProtectionRule(),
+    RDSBackupRetentionRule(),
+    RDSMinorUpgradeRule(),
+    # Lambda
+    LambdaPublicEventInvokeRule(),
+    LambdaRuntimeDeprecatedRule(),
+    LambdaVPCNoInternetRule(),
+    LambdaTimeoutRule(),
+    # CloudTrail
+    CloudTrailNoTrailsRule(),
+    CloudTrailNotMultiRegionRule(),
+    CloudTrailLogValidationRule(),
+    CloudTrailKMSEncryptionRule(),
+    CloudTrailNotLoggingRule(),
+    # KMS
+    KMSKeyRotationRule(),
+    KMSScheduledDeletionRule(),
+    KMSDisabledKeyRule(),
+    KMSAwsManagedKeyRule(),
 ]
 
 # Build a lookup: asset_type → applicable rules (avoids O(n*m) iteration)
