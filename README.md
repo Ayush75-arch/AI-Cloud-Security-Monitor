@@ -1,121 +1,150 @@
 # CloudGuard-AI
 
-> AI-powered Cloud Security Posture Management for AWS — built for security engineers who need signal, not noise.
+> **AI-powered Cloud Security Posture Management (CSPM) for AWS** — Built for security engineers who need signal, not noise.
 
-CloudGuard-AI scans your AWS infrastructure for misconfigurations, maps every finding to compliance frameworks (CIS, NIST, PCI-DSS), generates AI-powered attack scenarios and remediation steps via LLaMA 3 on Groq, and surfaces everything through a dark-themed SOC dashboard built for real security workflows.
+[![CI](https://github.com/Ayush75-arch/AI-Cloud-Security-Monitor/actions/workflows/ci.yml/badge.svg)](https://github.com/Ayush75-arch/AI-Cloud-Security-Monitor/actions/workflows/ci.yml)
+[![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.111-009688.svg)](https://fastapi.tiangolo.com)
+[![React 18](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-No agents. No cloud accounts. Demo mode works out of the box.
+CloudGuard-AI scans your AWS infrastructure for misconfigurations, maps every finding to compliance frameworks (CIS, NIST, PCI-DSS, SOC2, ISO-27001, GDPR), generates AI-powered attack scenarios and remediation steps via LLaMA 3 on Groq, and surfaces everything through a dark-themed SOC dashboard built for real security workflows.
+
+**No agents. No cloud accounts. Demo mode works out of the box.**
 
 ---
 
-## What it does
+## Features
 
-| Capability | Detail |
+### Security Scanning
+| Service | Rules | Coverage |
+|---|---|---|
+| **S3** | 5 rules | Public access, encryption, versioning, logging, public ACLs |
+| **IAM** | 4 rules | Wildcard policies, MFA, key rotation, root activity |
+| **EC2 / VPC** | 5 rules | Open SSH/RDP, all-traffic SGs, flow logs, default VPC |
+| **RDS** | 5 rules | Encryption, public access, deletion protection, backup retention, auto-upgrades |
+| **Lambda** | 4 rules | Deprecated runtimes, public invoke, VPC isolation, timeout |
+| **CloudTrail** | 5 rules | Not configured, multi-region, log validation, KMS encryption, logging status |
+| **KMS** | 4 rules | Key rotation, pending deletion, disabled keys, AWS-managed keys |
+| **IaC (Terraform)** | Static HCL analysis | Pre-deployment misconfiguration detection |
+
+### Compliance Frameworks
+| Framework | Controls |
 |---|---|
-| **Multi-service scanning** | S3, IAM, EC2, VPC — real AWS or mock demo mode |
-| **Rule engine** | 15+ rules across CIS Benchmarks, NIST SP 800-53, PCI-DSS |
-| **AI analysis** | Per-finding attack scenarios and remediation via LLaMA 3.3 70B (Groq) |
-| **IaC scanning** | Static analysis of Terraform HCL for misconfigurations before deploy |
-| **Compliance scoring** | Per-framework scores computed automatically after each scan |
-| **AI copilot chat** | Context-aware Q&A — ask about any finding directly from the findings table |
-| **Attack path analysis** | Cross-service attack chain visualization |
-| **Finding deduplication** | Fingerprint-based dedup across scans; auto-resolves fixed findings |
-| **Real-time scan updates** | SSE stream — no polling, live status as scan progresses |
-| **JWT auth** | Rate-limited login, bcrypt passwords, token-based session management |
+| **CIS AWS Foundations** | 16 benchmarks |
+| **NIST SP 800-53** | 12 controls |
+| **PCI-DSS 4.0** | 12 requirements |
+| **SOC 2** | CC6.1, CC7.1, CC7.2 |
+| **ISO 27001** | Annex A controls |
+| **GDPR** | Articles 5, 25, 30, 32 |
+
+### AI Capabilities
+- **Per-finding analysis** — LLaMA 3.3 70B on Groq generates explanations, attack scenarios, and remediation steps
+- **AI Security Copilot** — Natural language Q&A about findings, compliance, and best practices
+- **Multiple AI providers** — Groq (default), OpenAI, or local Ollama
+
+### Additional Capabilities
+- **Attack path analysis** — Cross-service attack chain visualization
+- **Finding deduplication** — Fingerprint-based dedup; auto-resolves fixed findings
+- **Real-time scan updates** — SSE stream, live status as scan progresses
+- **Report export** — CSV and JSON for findings, compliance, and full scan reports
+- **Security trends** — Compliance score, finding count, and security score over time
+- **Notifications** — Slack, Email, and webhook alerts for critical findings
+- **JWT auth** — Rate-limited login, bcrypt passwords, role-based access control
+- **Docker support** — Single `docker compose up` to run the entire stack
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  React Frontend (Vite + TypeScript)                             │
-│  Dashboard · Findings · Compliance · IaC · Assets · AI Chat    │
-└────────────────────┬────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│  React Frontend (Vite + TypeScript + Tailwind + Recharts)        │
+│  Dashboard · Findings · Compliance · IaC · Assets · AI Chat     │
+└────────────────────┬─────────────────────────────────────────────┘
                      │ REST + SSE  (JWT Bearer)
-┌────────────────────▼────────────────────────────────────────────┐
-│  FastAPI Backend                                                 │
-│                                                                  │
-│  ┌──────────┐  ┌─────────────┐  ┌──────────────┐               │
-│  │ Scanners │  │ Rule Engine │  │ AI Service   │               │
-│  │ S3 · IAM │→ │ 15+ rules   │→ │ Groq / Local │               │
-│  │ EC2 · VPC│  │ CIS/NIST/   │  │ LLaMA 3.3 70B│               │
-│  │ Mock     │  │ PCI-DSS     │  └──────────────┘               │
-│  └──────────┘  └─────────────┘                                  │
-│                                                                  │
-│  SQLAlchemy 2.0 async  ·  SlowAPI rate limiting                 │
-│  JWT auth  ·  Structured logging  ·  SSE streaming              │
-└────────────────────┬────────────────────────────────────────────┘
+┌────────────────────▼─────────────────────────────────────────────┐
+│  FastAPI Backend                                                  │
+│                                                                   │
+│  ┌────────────┐  ┌──────────────┐  ┌───────────────┐            │
+│  │ Scanners   │  │ Rule Engine  │  │ AI Service    │            │
+│  │ S3 · IAM   │→ │ 32 rules     │→ │ Groq / OpenAI │            │
+│  │ EC2 · VPC  │  │ CIS/NIST/    │  │ / Local LLM   │            │
+│  │ RDS · Lambda│ │ PCI/SOC2/    │  └───────────────┘            │
+│  │ CloudTrail  │  │ ISO/GDPR    │                                │
+│  │ KMS · Mock  │  └──────────────┘                               │
+│  └────────────┘                                                  │
+│                                                                   │
+│  ┌────────────┐  ┌──────────────┐  ┌───────────────┐            │
+│  │ Notify     │  │ Reports      │  │ Trends        │            │
+│  │ Slack/Email│→ │ CSV/JSON     │→ │ Score history │            │
+│  │ Webhook    │  │ Export       │  │ Timeline      │            │
+│  └────────────┘  └──────────────┘  └───────────────┘            │
+│                                                                   │
+│  SQLAlchemy 2.0 async  ·  SlowAPI rate limiting                  │
+│  JWT auth  ·  Structured logging  ·  SSE streaming               │
+└────────────────────┬─────────────────────────────────────────────┘
                      │
               SQLite (dev) / PostgreSQL (prod)
 ```
 
-**Stack:** FastAPI · SQLAlchemy 2.0 · React 18 · Vite · TypeScript · Zustand · Groq API · httpx · Pydantic v2
+**Stack:** FastAPI · SQLAlchemy 2.0 · React 18 · Vite · TypeScript · Tailwind CSS · Zustand · Recharts · Groq API · OpenAI API · httpx · Pydantic v2
 
 ---
 
-## Quick start
+## Quick Start
 
 ### Prerequisites
-
 - Python 3.11+
 - Node 18+
-- A Groq API key — free at [console.groq.com](https://console.groq.com) (optional — demo mode works without it)
+- Docker (optional — for Docker Compose)
 
-### 1. Backend
+### Option 1: Docker Compose (Recommended)
 
 ```bash
+# Clone and start everything
+git clone https://github.com/Ayush75-arch/AI-Cloud-Security-Monitor.git
+cd AI-Cloud-Security-Monitor
+
+# (Optional) Set your Groq API key for AI features
+echo "GROQ_API_KEY=gsk_your_key_here" > backend/.env
+
+# Start all services
+docker compose up --build
+
+# Open http://localhost
+# Login: admin / cloudguard123
+```
+
+### Option 2: Local Development
+
+```bash
+# 1. Backend
 cd backend
-
+cp .env.example .env
 pip install -r requirements.txt
-
-# Create your env file
-cp ../.env.example .env
-```
-
-Edit `backend/.env` — the only required field for AI to work:
-
-```env
-GROQ_API_KEY=gsk_your_key_here
-```
-
-```bash
 uvicorn app.main:app --reload --port 8000
+
+# 2. Frontend (in a new terminal)
+cd frontend
+npm install
+echo "VITE_API_BASE_URL=http://localhost:8000" > .env.local
+npm run dev
+
+# 3. Seed demo data
+cd backend && python seed_demo.py
 ```
 
-Verify: `curl http://localhost:8000/health`
+Open http://localhost:5173 and login with `admin` / `cloudguard123`.
 
-Expected response:
-```json
-{
-  "status": "ok",
-  "version": "1.0.0",
-  "ai_configured": true,
-  "ai_provider": "groq"
-}
-```
-
-If `ai_configured` is `false`, your key is missing or empty in `.env`.
-
-### 2. Frontend
+### Option 3: Makefile (Linux/macOS)
 
 ```bash
-cd frontend
-
-npm install
-
-echo "VITE_API_BASE_URL=http://localhost:8000" > .env.local
-
-npm run dev
-```
-
-Opens at `http://localhost:5173`
-
-### 3. Login
-
-```
-username: admin
-password: cloudguard123
+make install    # Install all dependencies
+make seed       # Seed demo data
+make dev        # Start backend + frontend
+make test       # Run tests
+make docker-up  # Start with Docker Compose
 ```
 
 ---
@@ -127,260 +156,109 @@ All settings live in `backend/.env`. Copy from `.env.example` and adjust.
 | Variable | Default | Description |
 |---|---|---|
 | `GROQ_API_KEY` | _(empty)_ | Groq API key — enables AI features |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Model name. See [Groq docs](https://console.groq.com/docs/models) for available models |
-| `AI_PROVIDER` | `groq` | `groq` or `local` (Ollama) |
-| `DATABASE_URL` | `sqlite+aiosqlite:///./cloudguard.db` | SQLite for dev. Use PostgreSQL in prod |
-| `SECRET_KEY` | _(change this)_ | JWT signing key — use `python -c "import secrets; print(secrets.token_hex(32))"` |
-| `AWS_ACCESS_KEY_ID` | _(empty)_ | Real AWS credentials. Leave empty for demo mode |
-| `AWS_SECRET_ACCESS_KEY` | _(empty)_ | Real AWS credentials |
-| `ENVIRONMENT` | `development` | `development`, `staging`, or `production` |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | `60` | JWT expiry |
+| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Model name |
+| `AI_PROVIDER` | `groq` | `groq`, `openai`, or `local` (Ollama) |
+| `OPENAI_API_KEY` | _(empty)_ | OpenAI API key for GPT-4o |
+| `DATABASE_URL` | `sqlite+aiosqlite:///./cloudguard.db` | SQLite for dev, PostgreSQL for prod |
+| `SECRET_KEY` | _(change me)_ | JWT signing key |
+| `ENVIRONMENT` | `development` | `development`, `staging`, `production` |
+| `SLACK_WEBHOOK_URL` | _(empty)_ | Slack webhook for notifications |
+| `SMTP_SERVER` | _(empty)_ | SMTP server for email alerts |
+| `EMAIL_TO` | _(empty)_ | Comma-separated recipients for email alerts |
 
 **Demo mode** activates automatically when `AWS_ACCESS_KEY_ID` is empty — uses a mock scanner with realistic pre-configured assets and findings.
 
 ---
 
-## Project structure
+## Project Structure
 
 ```
 cloudguard/
 ├── backend/
-│   └── app/
-│       ├── ai/                  # AI adapters
-│       │   ├── groq_adapter.py  # Groq/LLaMA integration
-│       │   ├── groq_client.py   # Shared httpx client with connection pooling
-│       │   └── local_llm_adapter.py  # Ollama fallback
-│       ├── api/v1/
-│       │   └── router.py        # All REST endpoints + SSE stream
-│       ├── auth/                # JWT auth, bcrypt, rate-limited login
-│       ├── models/              # SQLAlchemy ORM models
-│       ├── rules/               # Rule engine + 15 security rules
-│       │   ├── engine.py
-│       │   ├── s3_rules.py      # S3-001 through S3-005
-│       │   ├── iam_rules.py     # IAM-001 through IAM-004
-│       │   └── ec2_vpc_rules.py # EC2/VPC-001 through EC2-005
-│       ├── scanners/            # AWS service scanners
-│       │   ├── s3_scanner.py
-│       │   ├── iam_scanner.py
-│       │   ├── ec2_scanner.py
-│       │   ├── vpc_scanner.py
-│       │   ├── mock_scanner.py  # Demo mode
-│       │   └── iac/
-│       │       └── terraform_scanner.py
-│       ├── services/            # Business logic
-│       │   ├── scan_service.py  # Full scan pipeline + AI orchestration
-│       │   ├── ai_service.py    # Per-finding AI analysis
-│       │   ├── chat_service.py  # Conversational AI copilot
-│       │   ├── finding_service.py
-│       │   └── compliance_service.py
-│       ├── config.py            # Settings with hot-reload support
-│       └── main.py              # FastAPI app + startup migrations
+│   ├── app/
+│   │   ├── ai/                  # AI adapters (Groq, OpenAI, Local LLM)
+│   │   ├── api/v1/              # REST endpoints + SSE stream
+│   │   ├── auth/                # JWT auth, bcrypt, rate-limited login
+│   │   ├── models/              # SQLAlchemy ORM models
+│   │   ├── rules/               # Rule engine + 32 security rules
+│   │   ├── scanners/            # AWS service scanners (8 services)
+│   │   │   └── iac/             # Terraform static analysis
+│   │   ├── services/            # Business logic layer
+│   │   │   ├── scan_service.py
+│   │   │   ├── ai_service.py
+│   │   │   ├── chat_service.py
+│   │   │   ├── compliance_service.py
+│   │   │   ├── finding_service.py
+│   │   │   ├── attack_path_service.py
+│   │   │   ├── notification_service.py   # Slack/Email/Webhook
+│   │   │   ├── report_service.py         # CSV/JSON export
+│   │   │   └── trend_service.py          # Security trends
+│   │   └── utils/               # Constants, exceptions, logging, rate limiting
+│   ├── tests/                   # 40+ pytest tests
+│   ├── migrations/              # Alembic migrations
+│   ├── seed_demo.py             # Demo data seeder
+│   └── Dockerfile               # Multi-stage build
 │
-└── frontend/
-    └── src/
-        ├── pages/               # Dashboard, Findings, Compliance, IaC, Chat, Login…
-        ├── components/          # FindingsTable (with Ask AI), ScanTrigger (SSE), …
-        ├── api/                 # Typed API client with JWT interceptor
-        ├── store/               # Zustand state
-        └── types/               # TypeScript interfaces
+├── frontend/
+│   ├── src/
+│   │   ├── pages/               # Dashboard, Findings, Compliance, IaC, Chat, Login
+│   │   ├── components/          # Reusable UI components
+│   │   ├── api/                 # Typed API client with JWT interceptor
+│   │   ├── store/               # Zustand state management
+│   │   └── types/               # TypeScript interfaces
+│   ├── Dockerfile               # Nginx static serving
+│   └── nginx.conf               # SPA + API proxy
+│
+├── docker-compose.yml           # Backend + Frontend + (optional Redis)
+├── Makefile                     # Common development commands
+├── .github/workflows/ci.yml     # CI/CD pipeline
+├── .pre-commit-config.yaml      # Pre-commit hooks
+└── README.md
 ```
 
 ---
 
-## Security rules
-
-### S3
-
-| Rule | Severity | Compliance |
-|---|---|---|
-| `S3-001` Public access block disabled | Critical | CIS 2.1.5, PCI-DSS 1.3 |
-| `S3-002` Server-side encryption disabled | High | CIS 2.1.1, NIST SC-28 |
-| `S3-003` Public ACL grants | Critical | CIS 2.1.5 |
-| `S3-004` Access logging disabled | Medium | CIS 2.1.3, NIST AU-2 |
-| `S3-005` Versioning disabled | Low | NIST CP-9 |
-
-### IAM
-
-| Rule | Severity | Compliance |
-|---|---|---|
-| `IAM-001` Wildcard `Action: *` policy | Critical | CIS 1.16, NIST AC-6 |
-| `IAM-002` MFA not enabled | High | CIS 1.10, NIST IA-2 |
-| `IAM-003` Access key not rotated (90+ days) | Medium | CIS 1.14, NIST IA-5 |
-| `IAM-004` Root account activity detected | Critical | CIS 1.1, NIST AC-2 |
-
-### EC2 / VPC
-
-| Rule | Severity | Compliance |
-|---|---|---|
-| `EC2-001` SSH open to 0.0.0.0/0 | Critical | CIS 5.2, PCI-DSS 1.3 |
-| `EC2-002` RDP open to 0.0.0.0/0 | Critical | CIS 5.3, PCI-DSS 1.3 |
-| `EC2-003` All traffic allowed in security group | Critical | NIST SC-7 |
-| `VPC-001` VPC Flow Logs disabled | Medium | CIS 3.9, NIST AU-2 |
-| `VPC-002` Default security group not restricted | Medium | CIS 5.4 |
-
----
-
-## API reference
+## API Reference
 
 Base URL: `http://localhost:8000/api/v1`
 
 All endpoints except `/auth/login` and `/health` require `Authorization: Bearer <token>`.
 
-### Auth
-```
-POST   /auth/login              Login — returns JWT
-GET    /auth/me                 Current user info
-```
-
-### Scans
-```
-POST   /scans                   Trigger new scan
-GET    /scans                   List scans (paginated)
-GET    /scans/{id}              Scan detail
-GET    /scans/{id}/findings     Findings for a scan
-GET    /scans/{id}/stream       SSE stream — live scan status updates
-```
-
-### Findings
-```
-GET    /findings                All findings (filterable by severity, status, rule_id)
-GET    /findings/{id}           Finding detail with AI analysis
-PATCH  /findings/{id}/suppress  Suppress a finding with reason
-```
-
-### Compliance
-```
-GET    /compliance              Compliance scores (CIS, NIST, PCI-DSS)
-```
-
-### Assets
-```
-GET    /assets                  All scanned assets
-```
-
-### IaC
-```
-POST   /iac/scan                Scan raw Terraform HCL content
-POST   /iac/scan/upload         Upload a .tf file for scanning
-```
-
-### AI
-```
-POST   /chat                    AI security copilot chat
-GET    /ai/status               Test Groq API key connectivity
-GET    /dashboard/stats         Summary stats for dashboard
-GET    /attack-paths            Attack chain analysis
-```
-
-### Debug
-```
-GET    /health                  Server health + AI configured status (unauthenticated)
-```
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/health` | Server health (unauthenticated) |
+| `POST` | `/auth/login` | Login — returns JWT |
+| `GET` | `/auth/me` | Current user info |
+| `POST` | `/scans` | Trigger new scan |
+| `GET` | `/scans` | List scans (paginated) |
+| `GET` | `/scans/{id}` | Scan detail |
+| `GET` | `/scans/{id}/findings` | Findings for a scan |
+| `GET` | `/scans/{id}/stream` | SSE stream — live scan status |
+| `GET` | `/findings` | All findings (filterable) |
+| `GET` | `/findings/{id}` | Finding detail with AI analysis |
+| `PATCH` | `/findings/{id}/suppress` | Suppress a finding |
+| `GET` | `/compliance` | Compliance scores |
+| `GET` | `/assets` | All scanned assets |
+| `GET` | `/dashboard/stats` | Dashboard summary stats |
+| `GET` | `/attack-paths` | Attack chain analysis |
+| `POST` | `/chat` | AI security copilot chat |
+| `POST` | `/iac/scan` | Scan Terraform HCL |
+| `POST` | `/iac/scan/upload` | Upload .tf file for scanning |
+| `GET` | `/reports/findings/csv` | Export findings as CSV |
+| `GET` | `/reports/findings/json` | Export findings as JSON |
+| `GET` | `/reports/compliance/csv` | Export compliance as CSV |
+| `GET` | `/reports/scan/{id}/full` | Export full report as JSON |
+| `GET` | `/trends/compliance` | Compliance score history |
+| `GET` | `/trends/findings` | Finding count history |
+| `GET` | `/trends/security-score` | Security score history |
+| `POST` | `/notifications/test` | Test notification channels |
+| `POST` | `/notifications/send` | Send alerts for findings |
 
 ---
 
-## Debugging
+## Adding a New Security Rule
 
-### AI not working
-
-```bash
-# Check if key is loaded
-curl http://localhost:8000/health
-# → "ai_configured": true means key is present
-
-# Test key against Groq directly (needs JWT)
-curl -H "Authorization: Bearer <token>" http://localhost:8000/api/v1/ai/status
-# → "status": "ok" means everything works
-# → "status": "error" with detail tells you what's wrong (401 = bad key, 429 = rate limited)
-```
-
-Common causes:
-- `.env` file doesn't exist in `backend/` — create it (see Quick start)
-- Key is set but uvicorn wasn't restarted after editing `.env`
-- Model name in `GROQ_MODEL` is wrong — use `llama-3.3-70b-versatile`
-
-### Scans produce no findings
-
-The database schema may be stale. Delete `cloudguard.db` and restart — the app recreates the schema on startup with automatic column migrations.
-
-```bash
-rm backend/cloudguard.db
-uvicorn app.main:app --reload --port 8000
-```
-
-### Frontend shows "No GROQ key"
-
-This reads from `/health`. If the key is in `.env` but this still shows, uvicorn needs a full restart (not just `--reload` watching a file save — the env file must be re-read at process start).
-
-### Login fails
-
-Run the seed script to create the demo user:
-```bash
-cd backend && python seed_demo.py
-```
-
----
-
-## Production deployment
-
-### Environment hardening
-
-```env
-ENVIRONMENT=production
-SECRET_KEY=<64-char random hex>      # python -c "import secrets; print(secrets.token_hex(32))"
-DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname
-DEBUG=false
-```
-
-Production startup will refuse to start with default `SECRET_KEY` or SQLite.
-
-### Backend (Render / Railway / EC2)
-
-```bash
-gunicorn app.main:app \
-  --worker-class uvicorn.workers.UvicornWorker \
-  --workers 2 \
-  --bind 0.0.0.0:8000 \
-  --timeout 120
-```
-
-A `Dockerfile` is included in `backend/`.
-
-### Frontend (Vercel / Netlify)
-
-```bash
-cd frontend && npm run build
-# dist/ is the output — deploy as static site
-# Set VITE_API_BASE_URL to your backend URL in platform env vars
-```
-
-### Nginx SSE configuration
-
-The scan stream endpoint (`/scans/{id}/stream`) requires buffering to be disabled:
-
-```nginx
-location /api/v1/scans/ {
-    proxy_pass http://backend:8000;
-    proxy_buffering off;
-    proxy_cache off;
-    proxy_set_header X-Accel-Buffering no;
-}
-```
-
----
-
-## Development
-
-### Running tests
-
-```bash
-cd backend
-pytest tests/ -v
-```
-
-### Adding a new security rule
-
-1. Add a class to the appropriate rules file (e.g. `app/rules/s3_rules.py`):
+1. Create a class in the appropriate rules file (e.g. `app/rules/s3_rules.py`):
 
 ```python
 class S3NewRule(BaseRule):
@@ -391,28 +269,100 @@ class S3NewRule(BaseRule):
     compliance_mappings = {"CIS": "2.1.x", "NIST": "XX-X"}
     asset_types = [AssetType.S3_BUCKET]
 
-    def evaluate(self, asset: ScanResult) -> bool:
-        return not asset.raw_config.get("YourField")
+    def evaluate(self, asset_config: dict) -> RuleFinding | None:
+        if not asset_config.get("YourField"):
+            return self._finding()
+        return None
 ```
 
-2. Register it in `app/rules/engine.py` — add to the import and the `RULES` list.
+2. Register it in `app/rules/engine.py` — add to imports and `ALL_RULES` list.
+3. Add compliance mappings in `app/utils/constants.py` under `EXTENDED_COMPLIANCE`.
 
-No other changes needed — the engine discovers and runs all registered rules automatically.
+That's it — no other changes needed.
 
-### Adding a new AWS scanner
+---
+
+## Adding a New AWS Scanner
 
 1. Create `app/scanners/myservice_scanner.py` extending `BaseScanner`
 2. Implement `async def scan(self) -> list[ScanResult]`
 3. Register in `app/scanners/__init__.py` under `SCANNER_REGISTRY`
+4. Add service name to `SUPPORTED_SERVICES` in `app/utils/constants.py`
 
 ---
 
-## Team
+## Production Deployment
 
-Built by **Binary Bandits** for Hack2Hire 1.0.
+### Environment Hardening
+
+```env
+ENVIRONMENT=production
+SECRET_KEY=<64-char random hex>
+DATABASE_URL=postgresql+asyncpg://user:pass@host/dbname
+DEBUG=false
+```
+
+### Backend
+
+```bash
+gunicorn app.main:app \
+  --worker-class uvicorn.workers.UvicornWorker \
+  --workers 2 \
+  --bind 0.0.0.0:8000 \
+  --timeout 120
+```
+
+### Frontend
+
+```bash
+cd frontend && npm run build
+# Deploy dist/ to Vercel, Netlify, or S3+CloudFront
+# Set VITE_API_BASE_URL to your backend URL
+```
+
+### Docker
+
+```bash
+docker compose -f docker-compose.yml up --build -d
+```
+
+---
+
+## Development
+
+### Running Tests
+
+```bash
+cd backend
+pytest tests/ -v --cov=app --cov-report=term-missing
+```
+
+### Pre-commit Hooks
+
+```bash
+pip install pre-commit
+pre-commit install
+```
+
+### Useful Commands
+
+```bash
+make install     # Install dependencies
+make test        # Run tests
+make lint        # Lint Python files
+make format      # Auto-format Python files
+make seed        # Seed demo data
+make docker-up   # Start Docker stack
+```
 
 ---
 
 ## License
 
 MIT
+
+---
+
+## Team
+
+Built by **Binary Bandits** for Hack2Hire 1.0.
