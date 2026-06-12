@@ -1,0 +1,51 @@
+# Environment / Secrets
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+venv/
+.venv/
+test_venv/
+
+# Logs
+*.log
+*.out
+*.err
+*.err.log
+*.out.log
+
+# Database
+*.db
+*.db-journal
+*.sqlite3
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# pytest cache dirs
+pytest-cache-files-*/
+.pytest_cache/
+
+# Ruff / Mypy
+.ruff_cache/
+.mypy_cache/
+
+# Test DB
+test.db
+test.db-journal
