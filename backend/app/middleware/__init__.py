@@ -12,6 +12,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 
+from app.config import settings
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -56,8 +57,20 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         # Rule 11: never cache API responses
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, private"
         response.headers["Pragma"] = "no-cache"
-        # CSP — API only, no HTML served
-        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+        # CSP — relaxed for Swagger UI in non-production
+        if settings.ENVIRONMENT == "production":
+            csp = "default-src 'none'; frame-ancestors 'none'"
+        else:
+            csp = (
+                "default-src 'none'; "
+                "script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline' 'unsafe-eval'; "
+                "style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; "
+                "img-src 'self' https://fastapi.tiangolo.com data:; "
+                "font-src 'self' https://cdn.jsdelivr.net data:; "
+                "connect-src 'self' http://localhost:* ws://localhost:*; "
+                "frame-ancestors 'none'"
+            )
+        response.headers["Content-Security-Policy"] = csp
         # Uncomment for HTTPS/production:
         # response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains; preload"
 
