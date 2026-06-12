@@ -85,6 +85,26 @@ class ScanService:
             current_settings = refresh_settings()
             use_mock = not bool(current_settings.AWS_ACCESS_KEY_ID)
 
+            if "azure" in (scan.services or []):
+                logger.info("azure_scan_active")
+                from app.scanners.azure_scanner import AzureScanner
+                try:
+                    azure = AzureScanner(region=scan.region, account_id=scan.account_id)
+                    azure_assets = await azure.scan()
+                    all_assets.extend(azure_assets)
+                except Exception as exc:
+                    logger.error("azure_scan_failed", error=str(exc))
+
+            if "gcp" in (scan.services or []):
+                logger.info("gcp_scan_active")
+                from app.scanners.gcp_scanner import GCPScanner
+                try:
+                    gcp = GCPScanner(region=scan.region, account_id=scan.account_id)
+                    gcp_assets = await gcp.scan()
+                    all_assets.extend(gcp_assets)
+                except Exception as exc:
+                    logger.error("gcp_scan_failed", error=str(exc))
+
             if use_mock:
                 logger.info("demo_mode_active", reason="no AWS credentials configured, using mock scanner")
                 from app.scanners.mock_scanner import MockScanner

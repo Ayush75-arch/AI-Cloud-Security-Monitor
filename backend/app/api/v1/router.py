@@ -613,3 +613,151 @@ async def send_notifications(
     svc = NotificationService()
     sent = await svc.send_alert(filtered)
     return APIResponse(data={"sent": sent, "total_matching": len(filtered)})
+
+
+# ── Auto-Remediation Engine ───────────────────────────────────────────────────
+
+class RemediationRequest(_BaseModel):
+    rule_id: str
+    asset_arn: str
+    approved: bool = False
+
+
+@router.get("/remediation/playbooks", tags=["Remediation"])
+async def list_playbooks(
+    _: AuthUser,
+    rule_ids: str | None = None,
+) -> APIResponse:
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    ids = rule_ids.split(",") if rule_ids else []
+    if ids:
+        playbooks = svc.get_available_playbooks(ids)
+    else:
+        from app.services.remediation_service import REMEDIATION_PLAYBOOKS
+        playbooks = [
+            {
+                "rule_id": p.rule_id,
+                "title": p.title,
+                "description": p.description,
+                "risk_level": p.risk_level,
+                "requires_approval": p.requires_approval,
+                "steps_count": len(p.steps),
+            }
+            for p in REMEDIATION_PLAYBOOKS.values()
+        ]
+    return APIResponse(data=playbooks, meta={"total": len(playbooks)})
+
+
+@router.post("/remediation/dry-run", tags=["Remediation"])
+async def dry_run_remediation(
+    body: RemediationRequest,
+    _: AuthUser,
+) -> APIResponse:
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    result = await svc.dry_run(body.rule_id, body.asset_arn)
+    return APIResponse(data=result)
+
+
+@router.post("/remediation/execute", tags=["Remediation"])
+async def execute_remediation(
+    body: RemediationRequest,
+    _: AuthUser,
+) -> APIResponse:
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    result = await svc.execute_remediation(body.rule_id, body.asset_arn, body.approved)
+    return APIResponse(data=result)
+
+
+@router.post("/remediation/terraform-plan", tags=["Remediation"])
+async def generate_terraform_plan(
+    body: RemediationRequest,
+    _: AuthUser,
+) -> APIResponse:
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    result = await svc.generate_terraform_plan(body.rule_id, body.asset_arn)
+    return APIResponse(data=result)
+
+
+# ── Cloud Security Graph ──────────────────────────────────────────────────────
+
+@router.get("/graph", tags=["Security Graph"])
+async def get_security_graph(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.graph_service import GraphBuilder
+    builder = GraphBuilder(db)
+    graph = await builder.build(scan_id=scan_id)
+    return APIResponse(data=graph.to_dict())
+
+
+@router.get("/graph/attack-paths", tags=["Security Graph"])
+async def get_graph_attack_paths(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.graph_service import GraphBuilder
+    builder = GraphBuilder(db)
+    paths = await builder.get_attack_paths_graph(scan_id=scan_id)
+    return APIResponse(data=paths, meta={"count": len(paths)})
+
+
+@router.get("/graph/hotspots", tags=["Security Graph"])
+async def get_hotspot_nodes(
+    _: AuthUser,
+    top_n: int = Query(10, ge=1, le=50),
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.graph_service import GraphBuilder
+    builder = GraphBuilder(db)
+    await builder.build(scan_id=scan_id)
+    hotspots = builder.get_hotspot_nodes(top_n=top_n)
+    return APIResponse(data=hotspots, meta={"count": len(hotspots)})
+
+
+# ── Executive Reports ─────────────────────────────────────────────────────────
+
+@router.get("/reports/executive/json", tags=["Reports"])
+async def executive_report_json(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.executive_report_service import ExecutiveReportService
+    report = await ExecutiveReportService(db).generate_json_report(scan_id=scan_id)
+    return APIResponse(data=report)
+
+
+@router.get("/reports/executive/html", tags=["Reports"])
+async def executive_report_html(
+    _: AuthUser,
+    scan_id: str | None = None,
+    db: AsyncSession = Depends(get_db),
+) -> PlainTextResponse:
+    from app.services.executive_report_service import ExecutiveReportService
+    html = await ExecutiveReportService(db).generate_html_report(scan_id=scan_id)
+    return PlainTextResponse(
+        content=html,
+        media_type="text/html",
+        headers={"Content-Disposition": f"inline; filename=executive_report_{scan_id or 'latest'}.html"},
+    )
+
+
+# ── Compliance Drift ──────────────────────────────────────────────────────────
+
+@router.get("/drift", tags=["Drift Detection"])
+async def detect_drift(
+    _: AuthUser,
+    db: AsyncSession = Depends(get_db),
+) -> APIResponse:
+    from app.services.drift_service import DriftDetector
+    detector = DriftDetector(db)
+    events = await detector.detect()
+    return APIResponse(data=events, meta={"count": len(events) if isinstance(events, list) else 1})

@@ -392,3 +392,147 @@ async def test_trend_service_initialization(client):
     async with AsyncSessionLocal() as db:
         svc = TrendService(db)
         assert svc is not None
+
+
+# ── Remediation Engine ────────────────────────────────────────────────────────
+
+def test_remediation_playbook_exists():
+    from app.services.remediation_service import REMEDIATION_PLAYBOOKS
+    assert len(REMEDIATION_PLAYBOOKS) > 10
+    assert "S3-001" in REMEDIATION_PLAYBOOKS
+    assert "EC2-001" in REMEDIATION_PLAYBOOKS
+    assert "IAM-001" in REMEDIATION_PLAYBOOKS
+    assert "RDS-002" in REMEDIATION_PLAYBOOKS
+    assert "KMS-001" in REMEDIATION_PLAYBOOKS
+    assert "VPC-001" in REMEDIATION_PLAYBOOKS
+    assert "CT-002" in REMEDIATION_PLAYBOOKS
+
+
+@pytest.mark.asyncio
+async def test_remediation_dry_run():
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    result = await svc.dry_run("S3-001", "arn:aws:s3:::test-bucket")
+    assert result["dry_run"] is True
+    assert result["rule_id"] == "S3-001"
+    assert len(result["would_execute_steps"]) > 0
+
+
+@pytest.mark.asyncio
+async def test_remediation_terraform_plan():
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    result = await svc.generate_terraform_plan("S3-001", "arn:aws:s3:::test-bucket")
+    assert result["rule_id"] == "S3-001"
+    assert "terraform_hcl" in result
+
+
+@pytest.mark.asyncio
+async def test_remediation_playbooks_list():
+    from app.services.remediation_service import RemediationService
+    svc = RemediationService()
+    playbooks = svc.get_available_playbooks(["S3-001", "EC2-001", "NONEXISTENT"])
+    assert len(playbooks) == 2
+
+
+# ── Cloud Security Graph ──────────────────────────────────────────────────────
+
+def test_graph_node_creation():
+    from app.services.graph_service import GraphNode
+    node = GraphNode(id="test-arn", label="test-bucket", type="s3_bucket", severity="high", findings_count=2)
+    assert node.id == "test-arn"
+    assert node.severity == "high"
+    assert node.findings_count == 2
+
+
+def test_graph_edge_creation():
+    from app.services.graph_service import GraphEdge
+    edge = GraphEdge(source="source-arn", target="target-arn", label="uses", type="iam_trust", risk="high")
+    assert edge.source == "source-arn"
+    assert edge.type == "iam_trust"
+
+
+def test_security_graph_to_dict():
+    from app.services.graph_service import SecurityGraph, GraphNode, GraphEdge
+    graph = SecurityGraph(
+        nodes=[GraphNode(id="n1", label="node1", type="s3_bucket")],
+        edges=[GraphEdge(source="n1", target="n2", label="connects", type="network_access")],
+    )
+    d = graph.to_dict()
+    assert len(d["nodes"]) == 1
+    assert len(d["edges"]) == 1
+    assert d["stats"]["total_nodes"] == 1
+
+
+# ── Executive Report Service ──────────────────────────────────────────────────
+
+def test_score_to_grade():
+    from app.services.executive_report_service import ExecutiveReportService
+    svc = ExecutiveReportService.__new__(ExecutiveReportService)
+    assert svc._score_to_grade(96) == "A+"
+    assert svc._score_to_grade(92) == "A"
+    assert svc._score_to_grade(87) == "A-"
+    assert svc._score_to_grade(82) == "B+"
+    assert svc._score_to_grade(72) == "B-"
+    assert svc._score_to_grade(62) == "C"
+    assert svc._score_to_grade(45) == "D"
+    assert svc._score_to_grade(20) == "F"
+
+
+def test_grade_description():
+    from app.services.executive_report_service import ExecutiveReportService
+    svc = ExecutiveReportService.__new__(ExecutiveReportService)
+    assert "Excellent" in svc._grade_description("A+")
+    assert "immediate" in svc._grade_description("F")
+
+
+def test_compute_security_score():
+    from app.services.executive_report_service import ExecutiveReportService
+    svc = ExecutiveReportService.__new__(ExecutiveReportService)
+    from app.models import Scan
+    scan = Scan.__new__(Scan)
+    scan.total_findings = 10
+    scan.critical_count = 1
+    scan.high_count = 2
+    scan.medium_count = 3
+    scan.low_count = 4
+    score = svc._compute_security_score(scan)
+    assert 0 <= score <= 100
+
+
+# ── Drift Detection ───────────────────────────────────────────────────────────
+
+def test_drift_event_dataclass():
+    from app.services.drift_service import DriftEvent
+    event = DriftEvent(
+        event_type="compliance_drift",
+        severity="high",
+        title="Test Drift",
+        description="Score dropped",
+        timestamp="2024-01-01T00:00:00Z",
+        scan_id="scan-123",
+        framework="CIS",
+        score_change=-10.0,
+    )
+    assert event.event_type == "compliance_drift"
+    assert event.score_change == -10.0
+
+
+# ── Multi-Cloud Scanners ──────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_azure_mock_scanner():
+    from app.scanners.azure_scanner import AzureScanner
+    scanner = AzureScanner(region="eastus", account_id="sub-123")
+    results = await scanner.scan()
+    assert len(results) == 3
+    assert results[0].asset_type == "azure_storage_account"
+
+
+@pytest.mark.asyncio
+async def test_gcp_mock_scanner():
+    from app.scanners.gcp_scanner import GCPScanner
+    scanner = GCPScanner(region="us-central1", account_id="my-project")
+    results = await scanner.scan()
+    assert len(results) == 4
+    assert results[0].asset_type == "gcp_storage_bucket"
