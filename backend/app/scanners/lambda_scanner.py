@@ -4,7 +4,6 @@ Collects Lambda function configurations: runtime, IAM role,
 environment variables, VPC config, reserved concurrency.
 """
 import asyncio
-from typing import Any
 
 import botocore.exceptions
 

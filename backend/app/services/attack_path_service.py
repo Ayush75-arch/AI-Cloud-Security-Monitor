@@ -10,12 +10,11 @@ Example paths:
 Returns structured attack chains for visualization in the dashboard.
 """
 from dataclasses import dataclass, field
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Asset, Finding, Scan
+from app.models import Asset, Finding
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -158,13 +157,13 @@ class AttackPathAnalyzer:
             overall = sorted(steps, key=lambda s: sev_order.get(s.severity, 99))[0].severity
 
             paths.append(AttackPath(
-                path_id=pattern["path_id"],
-                title=pattern["title"],
-                description=pattern["description"],
+                path_id=pattern["path_id"],  # type: ignore[arg-type]
+                title=pattern["title"],  # type: ignore[arg-type]
+                description=pattern["description"],  # type: ignore[arg-type]
                 overall_severity=overall,
                 steps=steps,
-                impact=pattern["impact"],
-                likelihood=pattern["likelihood"],
+                impact=pattern["impact"],  # type: ignore[arg-type]
+                likelihood=pattern["likelihood"],  # type: ignore[arg-type]
             ))
 
         # Sort by severity

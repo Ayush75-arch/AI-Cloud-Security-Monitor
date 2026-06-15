@@ -189,12 +189,17 @@ cloudguard/
 │   │   │   ├── chat_service.py
 │   │   │   ├── compliance_service.py
 │   │   │   ├── finding_service.py
-│   │   │   ├── attack_path_service.py
+│   │   │   ├── attack_path_service.py    # Attack chain analysis
+│   │   │   ├── chat_service.py           # AI Security Copilot
+│   │   │   ├── drift_service.py          # Compliance drift detection
+│   │   │   ├── executive_report_service.py # Executive summary reports
+│   │   │   ├── graph_service.py          # Security graph visualization
 │   │   │   ├── notification_service.py   # Slack/Email/Webhook
+│   │   │   ├── remediation_service.py    # Auto-remediation engine
 │   │   │   ├── report_service.py         # CSV/JSON export
 │   │   │   └── trend_service.py          # Security trends
 │   │   └── utils/               # Constants, exceptions, logging, rate limiting
-│   ├── tests/                   # 40+ pytest tests
+│   ├── tests/                   # 53 pytest tests
 │   ├── migrations/              # Alembic migrations
 │   ├── seed_demo.py             # Demo data seeder
 │   └── Dockerfile               # Multi-stage build

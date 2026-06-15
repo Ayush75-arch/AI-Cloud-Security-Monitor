@@ -26,7 +26,7 @@ class CloudTrailNoTrailsRule(BaseRule):
     }
 
     def evaluate(self, asset_config: dict[str, Any]) -> RuleFinding | None:
-        if not asset_config.get("TrailsExist", True):
+        if not asset_config.get("TrailsExist", False):
             return self._finding()
         return None
 

@@ -23,6 +23,9 @@ class FailingAsyncClient:
 async def test_groq_connection_failure_uses_builtin_guidance(monkeypatch):
     import httpx
 
+    import app.ai.groq_client as gc
+    gc._client = None
+
     monkeypatch.setattr(httpx, "AsyncClient", FailingAsyncClient)
 
     response = await AIChatService()._groq_chat(

@@ -5,19 +5,26 @@ import { formatDistanceToNow } from 'date-fns'
 import type { Asset, AssetType } from '../types'
 
 const ASSET_ICONS: Record<string, string> = {
-  s3_bucket:      '◈',
-  iam_role:       '◻',
-  iam_policy:     '◼',
-  iam_user:       '◷',
-  ec2_instance:   '◇',
-  security_group: '◈',
-  vpc:            '⬡',
-  subnet:         '◦',
+  s3_bucket:        '◈',
+  iam_role:         '◻',
+  iam_policy:       '◼',
+  iam_user:         '◷',
+  ec2_instance:     '◇',
+  security_group:   '◈',
+  vpc:              '⬡',
+  subnet:           '◦',
+  internet_gateway: '⇌',
+  rds_instance:     '🗄',
+  lambda_function:  'λ',
+  cloudtrail_trail: '⊡',
+  kms_key:          '🔑',
 }
 
 const ASSET_TYPES: AssetType[] = [
   's3_bucket', 'iam_role', 'iam_policy', 'iam_user',
   'ec2_instance', 'security_group', 'vpc', 'subnet',
+  'internet_gateway', 'rds_instance', 'lambda_function',
+  'cloudtrail_trail', 'kms_key',
 ]
 
 export default function AssetsPage() {

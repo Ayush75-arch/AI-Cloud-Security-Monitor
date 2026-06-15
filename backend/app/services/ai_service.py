@@ -99,9 +99,10 @@ class AIService:
                         ai_remediation=analysis.remediation,
                     )
                 )
-                await self._db.commit()
 
             except AIProviderError as exc:
                 logger.warning("ai_analysis_failed", finding_id=finding.id, error=str(exc))
             except Exception as exc:
                 logger.error("ai_analysis_unexpected_error", finding_id=finding.id, error=str(exc))
+
+        await self._db.commit()

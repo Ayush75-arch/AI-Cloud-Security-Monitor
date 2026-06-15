@@ -2,7 +2,7 @@
 CloudGuard-AI — Finding Service
 CRUD operations and filtering for security findings.
 """
-from sqlalchemy import select, func as sql_func, update
+from sqlalchemy import select, func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 

@@ -3,15 +3,15 @@
 export type Severity        = 'critical' | 'high' | 'medium' | 'low'
 export type ScanStatus      = 'pending' | 'running' | 'completed' | 'failed'
 export type FindingStatus   = 'open' | 'suppressed' | 'resolved'
-export type AssetType       = 's3_bucket' | 'iam_role' | 'iam_policy' | 'iam_user' | 'ec2_instance' | 'security_group' | 'vpc' | 'subnet'
-export type ComplianceFrame = 'CIS' | 'NIST' | 'PCI-DSS'
+export type AssetType       = 's3_bucket' | 'iam_role' | 'iam_policy' | 'iam_user' | 'ec2_instance' | 'security_group' | 'vpc' | 'subnet' | 'internet_gateway' | 'rds_instance' | 'lambda_function' | 'cloudtrail_trail' | 'kms_key'
+export type ComplianceFrame = 'CIS' | 'NIST' | 'PCI-DSS' | 'SOC2' | 'ISO-27001' | 'GDPR'
 
 // ── API Envelope ──────────────────────────────────────────────────────────────
 
 export interface APIResponse<T> {
   data: T
   meta: Record<string, unknown>
-  errors: { code: string; message: string }[]
+  errors?: { code: string; message: string }[]
 }
 
 export interface PaginationMeta {

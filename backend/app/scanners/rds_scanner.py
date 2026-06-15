@@ -4,7 +4,6 @@ Collects RDS instance configurations: encryption, public accessibility,
 backup retention, deletion protection, auto-minor version upgrades.
 """
 import asyncio
-from typing import Any
 
 import botocore.exceptions
 
@@ -52,7 +51,6 @@ class RDSScanner(BaseScanner):
                 "DBSecurityGroups": instance.get("DBSecurityGroups", []),
                 "EnhancedMonitoringResourceArn": instance.get("EnhancedMonitoringResourceArn"),
                 "PerformanceInsightsEnabled": instance.get("PerformanceInsightsEnabled", False),
-                "DeletionProtection": instance.get("DeletionProtection", False),
                 "IAMDatabaseAuthenticationEnabled": instance.get("IAMDatabaseAuthenticationEnabled", False),
                 "StorageType": instance.get("StorageType", ""),
             }

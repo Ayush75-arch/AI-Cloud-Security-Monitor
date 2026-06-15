@@ -3,7 +3,6 @@ CloudGuard-AI — IAM Rules
 Detection rules for IAM misconfigurations: wildcard permissions,
 missing MFA, admin policies, stale access keys.
 """
-import json
 from typing import Any
 
 from app.rules.base_rule import BaseRule, RuleFinding

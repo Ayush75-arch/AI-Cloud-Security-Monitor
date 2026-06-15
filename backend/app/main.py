@@ -2,7 +2,7 @@
 CloudGuard-AI — FastAPI Application Entry Point (Production-grade)
 Middleware stack: RequestID → SecurityHeaders → RequestLogging → CORS → GZip
 """
-from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -49,6 +49,8 @@ def _apply_migrations(conn) -> None:
         if column not in existing:
             conn.execute(text(f"ALTER TABLE findings ADD COLUMN {column} {col_type}"))
             logger.info("migration_applied", column=column)
+
+
 async def lifespan(app: FastAPI):
     logger.info(
         "cloudguard_startup",
@@ -99,7 +101,8 @@ def create_app() -> FastAPI:
         expose_headers=["X-Request-ID", "X-Response-Time"],
     )
     app.add_middleware(GZipMiddleware, minimum_size=1000)
-    app.add_middleware(SlowAPIMiddleware)
+    if not os.environ.get("TESTING"):
+        app.add_middleware(SlowAPIMiddleware)
 
     # ── Rate limit exceeded handler ───────────────────────────────────────
     @app.exception_handler(RateLimitExceeded)

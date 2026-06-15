@@ -5,7 +5,6 @@ Abstract interface for AI providers. Swap GROQ ↔ local LLM via config.
 import abc
 from dataclasses import dataclass
 
-from app.utils.constants import Severity
 
 
 @dataclass

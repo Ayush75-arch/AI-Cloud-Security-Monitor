@@ -8,12 +8,11 @@ Builds a directed graph of your entire cloud infrastructure showing:
 Inspired by Neo4j graph databases — runs in-memory.
 """
 from dataclasses import dataclass, field
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Asset, Finding, Scan
+from app.models import Asset, Finding
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -230,7 +229,6 @@ class GraphBuilder:
             self._graph.edges.append(GraphEdge(source=source, target=target, label=label, type=etype, risk=risk))
 
     def _enrich_with_findings(self):
-        sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
         for node in self._graph.nodes:
             node.findings_count = sum(
                 1 for f in self._findings.values()
@@ -243,8 +241,6 @@ class GraphBuilder:
         await self.build(scan_id)
 
         paths = []
-        sev_order = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-
         for node in self._graph.nodes:
             if node.severity not in ("critical", "high"):
                 continue
@@ -296,5 +292,5 @@ class GraphBuilder:
                     "findings_count": node.findings_count,
                 })
 
-        scored.sort(key=lambda x: x["risk_score"], reverse=True)
+        scored.sort(key=lambda x: x["risk_score"], reverse=True)  # type: ignore[arg-type, return-value]
         return scored[:top_n]

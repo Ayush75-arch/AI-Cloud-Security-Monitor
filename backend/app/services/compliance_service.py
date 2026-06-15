@@ -16,9 +16,10 @@ logger = get_logger(__name__)
 # Build control registry: framework → set of all control IDs from rules
 _ALL_CONTROLS: dict[str, set[str]] = {f.value: set() for f in ComplianceFramework}
 for _r in ALL_RULES:
-    for fw, control in _r.compliance_mappings.items():
-        if fw in _ALL_CONTROLS:
-            _ALL_CONTROLS[fw].add(control)
+    if _r.compliance_mappings:
+        for fw, control in _r.compliance_mappings.items():
+            if fw in _ALL_CONTROLS:
+                _ALL_CONTROLS[fw].add(control)
 
 
 class ComplianceService:

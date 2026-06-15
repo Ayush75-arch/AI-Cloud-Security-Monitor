@@ -5,10 +5,8 @@ Mock mode returns realistic Azure assets for demo purposes.
 Extend with Azure SDK (azure-identity, azure-mgmt-*) for real scans.
 """
 import asyncio
-from typing import Any
 
 from app.scanners.base import BaseScanner, ScanResult
-from app.utils.constants import AssetType
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

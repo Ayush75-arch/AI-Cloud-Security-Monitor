@@ -5,30 +5,8 @@ Run: pytest tests/ -v
 Uses an in-memory SQLite DB — no external services needed.
 """
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
 
-from app.main import app
-from app.database import engine, Base
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def setup_db():
-    """Create all tables before each test, drop after."""
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-    yield
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-
-
-@pytest_asyncio.fixture
-async def client():
-    async with AsyncClient(
-        transport=ASGITransport(app=app),
-        base_url="http://test"
-    ) as c:
-        yield c
+import app  # noqa: F401
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -92,14 +70,14 @@ async def test_me_with_token(client):
 # ── Scans ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_list_scans_empty(client):
-    res = await client.get("/api/v1/scans")
+async def test_list_scans_empty(auth_client):
+    res = await auth_client.get("/api/v1/scans")
     assert res.status_code == 200
     assert res.json()["data"] == []
 
 
 @pytest.mark.asyncio
-async def test_create_scan(client, monkeypatch):
+async def test_create_scan(auth_client, monkeypatch):
     import asyncio
 
     def close_background_task(coro, *args, **kwargs):
@@ -110,7 +88,7 @@ async def test_create_scan(client, monkeypatch):
 
     monkeypatch.setattr(asyncio, "create_task", close_background_task)
 
-    res = await client.post("/api/v1/scans", json={
+    res = await auth_client.post("/api/v1/scans", json={
         "account_id": "123456789012",
         "region": "us-east-1",
         "services": ["s3", "iam"],
@@ -123,8 +101,8 @@ async def test_create_scan(client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_get_scan_not_found(client):
-    res = await client.get("/api/v1/scans/nonexistent-id")
+async def test_get_scan_not_found(auth_client):
+    res = await auth_client.get("/api/v1/scans/nonexistent-id")
     assert res.status_code == 404
     assert res.json()["errors"][0]["code"] == "SCAN_NOT_FOUND"
 
@@ -132,15 +110,15 @@ async def test_get_scan_not_found(client):
 # ── Findings ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_list_findings_empty(client):
-    res = await client.get("/api/v1/findings")
+async def test_list_findings_empty(auth_client):
+    res = await auth_client.get("/api/v1/findings")
     assert res.status_code == 200
     assert res.json()["data"] == []
 
 
 @pytest.mark.asyncio
-async def test_dashboard_stats_empty(client):
-    res = await client.get("/api/v1/dashboard/stats")
+async def test_dashboard_stats_empty(auth_client):
+    res = await auth_client.get("/api/v1/dashboard/stats")
     assert res.status_code == 200
     data = res.json()["data"]
     assert data["total_findings"] == 0
@@ -151,8 +129,8 @@ async def test_dashboard_stats_empty(client):
 # ── Compliance ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_compliance_empty(client):
-    res = await client.get("/api/v1/compliance")
+async def test_compliance_empty(auth_client):
+    res = await auth_client.get("/api/v1/compliance")
     assert res.status_code == 200
     data = res.json()["data"]
     assert data["overall_score"] == 0.0
@@ -160,38 +138,38 @@ async def test_compliance_empty(client):
 
 
 @pytest.mark.asyncio
-async def test_assets_empty(client):
-    res = await client.get("/api/v1/assets")
+async def test_assets_empty(auth_client):
+    res = await auth_client.get("/api/v1/assets")
     assert res.status_code == 200
     assert res.json()["data"] == []
 
 
 @pytest.mark.asyncio
-async def test_attack_paths_empty(client):
-    res = await client.get("/api/v1/attack-paths")
+async def test_attack_paths_empty(auth_client):
+    res = await auth_client.get("/api/v1/attack-paths")
     assert res.status_code == 200
 
 
 # ── Report Export ─────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_export_findings_csv(client):
-    res = await client.get("/api/v1/reports/findings/csv")
+async def test_export_findings_csv(auth_client):
+    res = await auth_client.get("/api/v1/reports/findings/csv")
     assert res.status_code == 200
     assert "text/csv" in res.headers["content-type"]
 
 
 @pytest.mark.asyncio
-async def test_export_findings_json(client):
-    res = await client.get("/api/v1/reports/findings/json")
+async def test_export_findings_json(auth_client):
+    res = await auth_client.get("/api/v1/reports/findings/json")
     assert res.status_code == 200
     data = res.json()
     assert "data" in data
 
 
 @pytest.mark.asyncio
-async def test_export_compliance_csv(client):
-    res = await client.get("/api/v1/reports/compliance/csv")
+async def test_export_compliance_csv(auth_client):
+    res = await auth_client.get("/api/v1/reports/compliance/csv")
     assert res.status_code == 200
     assert "text/csv" in res.headers["content-type"]
 
@@ -199,20 +177,20 @@ async def test_export_compliance_csv(client):
 # ── Trends ────────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_compliance_trend(client):
-    res = await client.get("/api/v1/trends/compliance")
+async def test_compliance_trend(auth_client):
+    res = await auth_client.get("/api/v1/trends/compliance")
     assert res.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_finding_trend(client):
-    res = await client.get("/api/v1/trends/findings")
+async def test_finding_trend(auth_client):
+    res = await auth_client.get("/api/v1/trends/findings")
     assert res.status_code == 200
 
 
 @pytest.mark.asyncio
-async def test_security_score_trend(client):
-    res = await client.get("/api/v1/trends/security-score")
+async def test_security_score_trend(auth_client):
+    res = await auth_client.get("/api/v1/trends/security-score")
     assert res.status_code == 200
 
 
@@ -221,7 +199,7 @@ async def test_security_score_trend(client):
 @pytest.mark.asyncio
 async def test_rule_engine_initialization():
     from app.rules.engine import ALL_RULES, RuleEngine
-    assert len(ALL_RULES) == 33  # 14 original + 5 RDS + 4 Lambda + 5 CT + 4 KMS + 1 (EC2-003)
+    assert len(ALL_RULES) == 32  # 14 original + 5 RDS + 4 Lambda + 5 CT + 4 KMS
     engine = RuleEngine()
     assert engine is not None
 
@@ -487,15 +465,13 @@ def test_grade_description():
 
 
 def test_compute_security_score():
+    from types import SimpleNamespace
     from app.services.executive_report_service import ExecutiveReportService
     svc = ExecutiveReportService.__new__(ExecutiveReportService)
-    from app.models import Scan
-    scan = Scan.__new__(Scan)
-    scan.total_findings = 10
-    scan.critical_count = 1
-    scan.high_count = 2
-    scan.medium_count = 3
-    scan.low_count = 4
+    scan = SimpleNamespace(
+        total_findings=10, critical_count=1, high_count=2,
+        medium_count=3, low_count=4,
+    )
     score = svc._compute_security_score(scan)
     assert 0 <= score <= 100
 

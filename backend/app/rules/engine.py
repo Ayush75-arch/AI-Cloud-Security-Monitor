@@ -3,7 +3,6 @@ CloudGuard-AI — Rule Engine
 Central engine: loads all rules, evaluates against scanned assets,
 returns findings. Zero engine changes needed to add new rules.
 """
-from typing import Any
 
 from app.rules.base_rule import BaseRule, RuleFinding
 from app.rules.cloudtrail_rules import (
@@ -107,7 +106,7 @@ ALL_RULES: list[BaseRule] = [
 # Build a lookup: asset_type → applicable rules (avoids O(n*m) iteration)
 _RULE_INDEX: dict[str, list[BaseRule]] = {}
 for _rule in ALL_RULES:
-    for _at in _rule.applicable_asset_types:
+    for _at in (_rule.applicable_asset_types or []):
         _RULE_INDEX.setdefault(_at, []).append(_rule)
 
 

@@ -158,16 +158,17 @@ function describeArc(
   innerR: number, outerR: number,
   startAngle: number, endAngle: number,
 ): string {
-  const s1 = polarToCartesian(cx, cy, outerR, endAngle)
-  const e1 = polarToCartesian(cx, cy, outerR, startAngle)
-  const s2 = polarToCartesian(cx, cy, innerR, endAngle)
-  const e2 = polarToCartesian(cx, cy, innerR, startAngle)
-  const large = endAngle - startAngle > 180 ? 1 : 0
+  const s1 = polarToCartesian(cx, cy, outerR, startAngle)
+  const e1 = polarToCartesian(cx, cy, outerR, endAngle)
+  const s2 = polarToCartesian(cx, cy, innerR, startAngle)
+  const e2 = polarToCartesian(cx, cy, innerR, endAngle)
+  const sweep = endAngle - startAngle
+  const large = Math.abs(sweep) > 180 ? 1 : 0
   return [
     `M ${s1.x} ${s1.y}`,
-    `A ${outerR} ${outerR} 0 ${large} 0 ${e1.x} ${e1.y}`,
+    `A ${outerR} ${outerR} 0 ${large} 1 ${e1.x} ${e1.y}`,
     `L ${e2.x} ${e2.y}`,
-    `A ${innerR} ${innerR} 0 ${large} 1 ${s2.x} ${s2.y}`,
+    `A ${innerR} ${innerR} 0 ${large} 0 ${s2.x} ${s2.y}`,
     'Z',
   ].join(' ')
 }

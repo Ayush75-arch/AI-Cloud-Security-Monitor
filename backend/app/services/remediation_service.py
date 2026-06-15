@@ -4,13 +4,10 @@ The first open-source self-healing cloud security engine.
 Automatically fixes misconfigurations via AWS API or generates Terraform plans.
 Features: playbook system, approval workflows, rollback support, dry-run mode.
 """
-import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
 
-import httpx
 
 from app.config import settings
 from app.utils.logger import get_logger
@@ -350,7 +347,7 @@ class RemediationService:
             steps=len(playbook.steps),
         )
 
-        results = []
+        results: list[dict] = []
         all_success = True
 
         for i, step in enumerate(playbook.steps):
@@ -358,7 +355,7 @@ class RemediationService:
                 if step.action == RemediationAction.AWS_API and self._can_execute_aws():
                     result = await self._execute_aws_api(step, asset_arn)
                 else:
-                    result = self._generate_terraform_hcl(step, asset_arn, playbook)
+                    result = self._generate_terraform_hcl(step, asset_arn, playbook)  # type: ignore[assignment]
 
                 results.append({
                     "step": i + 1,
@@ -412,7 +409,7 @@ class RemediationService:
         }
 
     def _can_execute_aws(self) -> bool:
-        return bool(settings.AWS_ACCESS_KEY_ID)
+        return bool(settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY)
 
     async def _execute_aws_api(self, step: RemediationStep, asset_arn: str) -> dict:
         if not self._can_execute_aws():

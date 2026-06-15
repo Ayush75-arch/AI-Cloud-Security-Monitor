@@ -1,5 +1,4 @@
 import type { ComplianceSummary } from '../../types'
-import { RadialBarChart, RadialBar, ResponsiveContainer, Tooltip } from 'recharts'
 
 interface Props { data: ComplianceSummary }
 

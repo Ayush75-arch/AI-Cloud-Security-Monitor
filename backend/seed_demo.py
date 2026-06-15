@@ -8,8 +8,7 @@ import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
 
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 # ── Bootstrap app config so models import cleanly ─────────────────────────────
 import os
@@ -18,8 +17,8 @@ os.environ.setdefault("AI_PROVIDER", "local")
 os.environ.setdefault("SECRET_KEY", "demo-secret")
 os.environ.setdefault("GROQ_API_KEY", "demo")
 
-from app.models import Scan, Asset, Finding, ComplianceResult
-from app.database import engine, Base
+from app.models import Scan, Asset, Finding, ComplianceResult  # noqa: E402
+from app.database import engine, Base  # noqa: E402
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -370,13 +369,13 @@ COMPLIANCE = [
         "passed": 4,
         "failed": 4,
         "details": {
-            "CC6.1": {"status": "FAIL", "rule_id": "RDS-001", "title": "Storage Encryption", "severity": "high"},
+            "CC6.1_rds": {"status": "FAIL", "rule_id": "RDS-001", "title": "Storage Encryption", "severity": "high"},
             "CC7.1": {"status": "FAIL", "rule_id": "LAMBDA-002", "title": "Deprecated Runtime", "severity": "high"},
-            "CC6.1": {"status": "FAIL", "rule_id": "KMS-001", "title": "Key Rotation", "severity": "medium"},
-            "CC6.1": {"status": "FAIL", "rule_id": "CT-002", "title": "Multi-Region Trail", "severity": "high"},
-            "CC6.1": {"status": "PASS"},
-            "CC6.1": {"status": "PASS"},
-            "CC7.1": {"status": "PASS"},
+            "CC6.1_kms": {"status": "FAIL", "rule_id": "KMS-001", "title": "Key Rotation", "severity": "medium"},
+            "CC6.1_ct": {"status": "FAIL", "rule_id": "CT-002", "title": "Multi-Region Trail", "severity": "high"},
+            "CC6.1_pass_1": {"status": "PASS"},
+            "CC6.1_pass_2": {"status": "PASS"},
+            "CC7.1_pass": {"status": "PASS"},
             "CC7.2": {"status": "PASS"},
         }
     },

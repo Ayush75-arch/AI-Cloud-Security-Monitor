@@ -8,7 +8,6 @@ Example queries:
   "What does CIS 1.16 mean?"
   "How do I fix the S3 public access issue?"
 """
-import json
 from dataclasses import dataclass
 
 from app.config import refresh_settings, settings
@@ -133,54 +132,15 @@ class AIChatService:
         return payload.get("output_text", "") or ""
 
     @staticmethod
-    def _groq_error_detail(response) -> str:
-        try:
-            payload = response.json()
-        except ValueError:
-            return response.text[:300]
-
-        error = payload.get("error") if isinstance(payload, dict) else None
-        if isinstance(error, dict):
-            return str(error.get("message") or error)
-        return str(payload)[:300]
-
-    @staticmethod
-    def _provider_error_response(
-        message: str,
-        status_code: int | None = None,
-        detail: str | None = None,
-    ) -> ChatResponse:
-        if status_code in {401, 403}:
-            response = "Groq rejected the request. Check that GROQ_API_KEY is valid and active."
-        elif status_code == 404:
-            response = (
-                "Groq rejected the model name. Set GROQ_MODEL to an active model such as "
-                "llama-3.3-70b-versatile."
-            )
-        elif status_code == 429:
-            response = "Groq rate-limited the request. Wait a moment and try again."
-        elif detail:
-            response = f"Groq is configured, but the API request failed: {detail}"
-        else:
-            response = (
-                "Groq is configured, but the API request failed. Check that GROQ_MODEL is available "
-                "for your account and that the API key is valid, then try again."
-            )
-        return ChatResponse(
-            message=response,
-            suggested_questions=AIChatService._suggest_questions(message),
-        )
-
-    @staticmethod
-    def _provider_unavailable_response(message: str) -> ChatResponse:
+    def _provider_unavailable_response(message: str, provider: str = "Groq") -> ChatResponse:
         response = AIChatService._fallback_response(message)
         response.message = (
             f"{response.message}\n\n"
-            "Note: Groq is currently unreachable, so this response used CloudGuard-AI's built-in guidance."
+            f"Note: {provider} is currently unreachable, so this response used CloudGuard-AI's built-in guidance."
         )
         return response
 
-    async def _local_chat(self, message: str, history: list[dict]) -> ChatResponse:
+    async def _local_chat(self, message: str, history: list[dict], provider_name: str = "Ollama") -> ChatResponse:
         import httpx
         # Build conversation context for local LLM
         conv = f"System: {SYSTEM_PROMPT}\n\n"
@@ -202,7 +162,7 @@ class AIChatService:
                 )
         except Exception as exc:
             logger.warning("chat_local_llm_error", error=str(exc))
-            return self._fallback_response(message)
+            return self._provider_unavailable_response(message, provider="Ollama/local LLM")
 
     @staticmethod
     def _enrich_message(message: str, context: dict | None) -> str:

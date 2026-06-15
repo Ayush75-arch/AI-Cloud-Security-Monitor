@@ -2,7 +2,6 @@
 CloudGuard-AI — S3 Rules
 Detection rules for S3 bucket misconfigurations.
 """
-import json
 from typing import Any
 
 from app.rules.base_rule import BaseRule, RuleFinding
@@ -33,7 +32,7 @@ class S3PublicAccessBlockRule(BaseRule):
             "BlockPublicPolicy",
             "RestrictPublicBuckets",
         ]
-        if not pab or not all(pab.get(k) is True for k in required_keys):
+        if not pab or not all(pab.get(k) for k in required_keys):
             return self._finding()
         return None
 

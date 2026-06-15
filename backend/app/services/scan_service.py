@@ -15,13 +15,12 @@ from sqlalchemy import select, func as sql_func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import refresh_settings
-from app.models import Asset, ComplianceResult, Finding, Scan
+from app.models import Asset, Finding, Scan
 from app.rules.engine import RuleEngine
 from app.scanners import SCANNER_REGISTRY, ScanResult
-from app.schemas import ScanCreateRequest, ScanDetail, ScanSummary
+from app.schemas import ScanCreateRequest
 from app.services.compliance_service import ComplianceService
 from app.utils.constants import (
-    SEVERITY_WEIGHTS,
     FindingStatus,
     ScanStatus,
     Severity,
@@ -109,7 +108,8 @@ class ScanService:
                 logger.info("demo_mode_active", reason="no AWS credentials configured, using mock scanner")
                 from app.scanners.mock_scanner import MockScanner
                 mock = MockScanner(region=scan.region, account_id=scan.account_id)
-                all_assets = await mock.scan()
+                mock_assets = await mock.scan()
+                all_assets.extend(mock_assets)
             else:
                 for service in scan.services:
                     scanner_cls = SCANNER_REGISTRY.get(service)
@@ -200,8 +200,7 @@ class ScanService:
             # Step 6: Update scan summary counts
             total_findings = sum(severity_counts.values())
             await self._db.execute(
-                Scan.__table__.update()
-                .where(Scan.id == scan_id)
+                Scan.__table__.update().where(Scan.id == scan_id)  # type: ignore[attr-defined]
                 .values(
                     status=ScanStatus.COMPLETED,
                     completed_at=datetime.now(timezone.utc),

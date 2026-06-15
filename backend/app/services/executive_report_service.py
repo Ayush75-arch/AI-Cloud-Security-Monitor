@@ -4,11 +4,9 @@ Generates beautiful HTML reports for C-suite and board meetings.
 Includes: security score, compliance summary, top findings, attack paths,
 trend charts, and executive summary narrative.
 """
-import json
 from datetime import datetime, timezone
-from typing import Any
 
-from sqlalchemy import select, func as sql_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Asset, ComplianceResult, Finding, Scan
@@ -139,7 +137,7 @@ class ExecutiveReportService:
             ],
             "assets": {
                 "total": len(assets),
-                "by_type": self._count_by_type(assets),
+                "by_type": self._count_by_type(list(assets)),
             },
             "narrative": self._generate_narrative(scan, score, grade, severity_distribution, compliance_summary),
         }
@@ -152,16 +150,26 @@ class ExecutiveReportService:
         return max(0, round(100.0 - risk_score, 1))
 
     def _score_to_grade(self, score: float) -> str:
-        if score >= 95: return "A+"
-        if score >= 90: return "A"
-        if score >= 85: return "A-"
-        if score >= 80: return "B+"
-        if score >= 75: return "B"
-        if score >= 70: return "B-"
-        if score >= 65: return "C+"
-        if score >= 60: return "C"
-        if score >= 55: return "C-"
-        if score >= 40: return "D"
+        if score >= 95:
+            return "A+"
+        if score >= 90:
+            return "A"
+        if score >= 85:
+            return "A-"
+        if score >= 80:
+            return "B+"
+        if score >= 75:
+            return "B"
+        if score >= 70:
+            return "B-"
+        if score >= 65:
+            return "C+"
+        if score >= 60:
+            return "C"
+        if score >= 55:
+            return "C-"
+        if score >= 40:
+            return "D"
         return "F"
 
     def _grade_description(self, grade: str) -> str:
@@ -181,18 +189,17 @@ class ExecutiveReportService:
         return descriptions.get(grade, "Security posture needs assessment.")
 
     def _generate_narrative(self, scan, score, grade, severity, compliance) -> str:
-        total = severity["critical"] + severity["high"] + severity["medium"] + severity["low"]
         critical = severity["critical"]
         high = severity["high"]
 
         avg_compliance = round(sum(c["score"] for c in compliance) / len(compliance), 1) if compliance else 0.0
 
         narrative = f"""
-Your cloud security posture currently scores {score} out of 100, earning a grade of {grade}. 
-This assessment is based on a comprehensive scan of {scan.total_findings} potential issues across 
+Your cloud security posture currently scores {score} out of 100, earning a grade of {grade}.
+This assessment is based on a comprehensive scan of {scan.total_findings} potential issues across
 {len(scan.services)} AWS services in the {scan.region} region.
 
-The scan identified {critical} critical and {high} high-severity findings that require immediate attention. 
+The scan identified {critical} critical and {high} high-severity findings that require immediate attention.
 The average compliance score across all frameworks is {avg_compliance}%.
 
 Key concerns include:"""
@@ -201,14 +208,14 @@ Key concerns include:"""
         if high > 0:
             narrative += f"\n- {high} high severity issues that require prioritized remediation"
 
-        narrative += f"\n\nWe recommend prioritizing the remediation of critical and high-severity findings, "
-        narrative += f"implementing automated remediation playbooks where possible, and scheduling regular scans "
-        narrative += f"to track security posture improvement over time."
+        narrative += "\n\nWe recommend prioritizing the remediation of critical and high-severity findings, "
+        narrative += "implementing automated remediation playbooks where possible, and scheduling regular scans "
+        narrative += "to track security posture improvement over time."
 
         return narrative
 
     def _count_by_type(self, assets: list) -> dict:
-        counts = {}
+        counts: dict[str, int] = {}
         for a in assets:
             counts[a.asset_type] = counts.get(a.asset_type, 0) + 1
         return counts

@@ -37,7 +37,7 @@ class IAMScanner(BaseScanner):
     # ── Users ─────────────────────────────────────────────────────────────
 
     def _scan_users(self, client: Any) -> list[ScanResult]:
-        results = []
+        results: list[ScanResult] = []
         try:
             users = self._paginate(client, "list_users", "Users")
         except botocore.exceptions.ClientError as exc:
@@ -93,7 +93,7 @@ class IAMScanner(BaseScanner):
     # ── Roles ─────────────────────────────────────────────────────────────
 
     def _scan_roles(self, client: Any) -> list[ScanResult]:
-        results = []
+        results: list[ScanResult] = []
         try:
             roles = self._paginate(client, "list_roles", "Roles")
         except botocore.exceptions.ClientError as exc:
@@ -138,7 +138,7 @@ class IAMScanner(BaseScanner):
     # ── Customer-managed Policies ─────────────────────────────────────────
 
     def _scan_policies(self, client: Any) -> list[ScanResult]:
-        results = []
+        results: list[ScanResult] = []
         try:
             policies = self._paginate(client, "list_policies", "Policies", Scope="Local")
         except botocore.exceptions.ClientError as exc:

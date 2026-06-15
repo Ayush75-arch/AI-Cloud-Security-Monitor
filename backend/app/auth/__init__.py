@@ -9,10 +9,10 @@ For demo: simple in-memory user store with bcrypt passwords.
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from pydantic import BaseModel
 
 from app.config import settings
@@ -22,7 +22,14 @@ logger = get_logger(__name__)
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+def _hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12)).decode()
+
+
+def _verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode(), hashed.encode())
+
 
 # ── Demo user store (replace with DB in production) ──────────────────────────
 # Passwords are bcrypt hashed. Default: admin/cloudguard123
@@ -30,13 +37,13 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 DEMO_USERS: dict[str, dict] = {
     "admin": {
         "username": "admin",
-        "hashed_password": pwd_context.hash("cloudguard123"),
+        "hashed_password": "$2b$12$kXuRZIbj98QkLYjqHajWzOLkjhGquI/xLg6W6wTwWb.9P8y.tfEnm",
         "role": "admin",
         "email": "admin@cloudguard.local",
     },
     "analyst": {
         "username": "analyst",
-        "hashed_password": pwd_context.hash("analyst123"),
+        "hashed_password": "$2b$12$hDMRpyBKPRtaIeUBP6mLx.sGNrB3dXlSo.ItsgYOK.E52J37/XT76",
         "role": "analyst",
         "email": "analyst@cloudguard.local",
     },
@@ -122,6 +129,6 @@ def authenticate_user(username: str, password: str) -> dict | None:
     user = DEMO_USERS.get(username)
     if not user:
         return None
-    if not pwd_context.verify(password, user["hashed_password"]):
+    if not _verify_password(password, user["hashed_password"]):
         return None
     return user

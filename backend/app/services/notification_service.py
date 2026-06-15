@@ -3,7 +3,6 @@ CloudGuard-AI — Notification Service
 Multi-channel alerting for security findings: Slack, Email, Webhook.
 Supports per-channel configuration with templated messages.
 """
-import json
 from dataclasses import dataclass, field
 
 import httpx
@@ -19,7 +18,7 @@ class NotificationChannel:
     name: str
     enabled: bool = True
 
-    def format_message(self, findings: list[dict]) -> str:
+    def format_message(self, findings: list[dict]) -> str:  # type: ignore[empty-body]
         ...
 
 
@@ -28,7 +27,7 @@ class SlackChannel(NotificationChannel):
     webhook_url: str = ""
     name: str = "slack"
 
-    def format_message(self, findings: list[dict]) -> dict:
+    def format_message(self, findings: list[dict]) -> dict:  # type: ignore[override]
         critical = [f for f in findings if f.get("severity") == "critical"]
         high = [f for f in findings if f.get("severity") == "high"]
 

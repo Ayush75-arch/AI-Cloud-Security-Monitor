@@ -4,7 +4,6 @@ Collects CloudTrail trail configurations: multi-region, log file validation,
 KMS encryption, S3 bucket destination, and insights settings.
 """
 import asyncio
-from typing import Any
 
 import botocore.exceptions
 

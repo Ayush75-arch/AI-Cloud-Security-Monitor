@@ -46,6 +46,8 @@ class RecordingAsyncClient:
 
 @pytest.mark.asyncio
 async def test_groq_adapter_uses_chat_completions_payload(monkeypatch):
+    import app.ai.groq_client as gc
+    gc._client = None
     monkeypatch.setattr(httpx, "AsyncClient", RecordingAsyncClient)
     monkeypatch.setattr(
         "app.ai.groq_adapter.refresh_settings",

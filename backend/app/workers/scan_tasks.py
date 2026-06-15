@@ -21,7 +21,7 @@ def run_scan_task(self, scan_id: str) -> dict:
     """
     logger.info("celery_scan_task_start", scan_id=scan_id, task_id=self.request.id)
     try:
-        result = asyncio.run(_run_scan_async(scan_id))
+        asyncio.run(_run_scan_async(scan_id))
         logger.info("celery_scan_task_complete", scan_id=scan_id)
         return {"scan_id": scan_id, "status": "completed"}
     except Exception as exc:

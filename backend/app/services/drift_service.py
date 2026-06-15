@@ -4,11 +4,10 @@ Real-time compliance drift monitoring between scans.
 Detects when previously compliant resources drift out of compliance,
 and when previously fixed findings reappear.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
 
-from sqlalchemy import select, func as sql_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import ComplianceResult, Finding, Scan
@@ -112,7 +111,7 @@ class DriftDetector:
         return events
 
     async def _check_finding_reappearance(self, current_id: str, previous_id: str) -> list[DriftEvent]:
-        events = []
+        events: list[DriftEvent] = []
 
         prev_q = await self._db.execute(
             select(Finding).where(

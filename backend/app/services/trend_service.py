@@ -3,13 +3,11 @@ CloudGuard-AI — Security Trend Service
 Tracks security posture over time by storing scan snapshots.
 Enables trend graphs: compliance score over time, finding count over time.
 """
-from datetime import datetime, timezone
 
-from sqlalchemy import select, func as sql_func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import ComplianceResult, Finding, Scan
-from app.utils.constants import FindingStatus, Severity
+from app.models import ComplianceResult, Scan
 from app.utils.logger import get_logger
 
 logger = get_logger(__name__)

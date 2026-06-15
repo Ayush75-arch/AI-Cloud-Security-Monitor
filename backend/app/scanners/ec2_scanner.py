@@ -35,7 +35,7 @@ class EC2Scanner(BaseScanner):
     # ── Instances ─────────────────────────────────────────────────────────
 
     def _scan_instances(self, client: Any) -> list[ScanResult]:
-        results = []
+        results: list[ScanResult] = []
         try:
             reservations = self._paginate(client, "describe_instances", "Reservations")
         except botocore.exceptions.ClientError as exc:
@@ -66,7 +66,7 @@ class EC2Scanner(BaseScanner):
     # ── Security Groups ───────────────────────────────────────────────────
 
     def _scan_security_groups(self, client: Any) -> list[ScanResult]:
-        results = []
+        results: list[ScanResult] = []
         try:
             groups = self._paginate(client, "describe_security_groups", "SecurityGroups")
         except botocore.exceptions.ClientError as exc:

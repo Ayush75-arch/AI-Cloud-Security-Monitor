@@ -5,7 +5,6 @@ Mock mode returns realistic GCP assets for demo purposes.
 Extend with Google Cloud client libraries for real scans.
 """
 import asyncio
-from typing import Any
 
 from app.scanners.base import BaseScanner, ScanResult
 from app.utils.logger import get_logger

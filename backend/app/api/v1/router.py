@@ -2,19 +2,25 @@
 CloudGuard-AI — API v1 Routers
 All endpoints: scans, findings, compliance, assets, IaC, attack paths, AI chat.
 """
+import asyncio
+import json
 import math
 from typing import Annotated
-from pydantic import BaseModel as _BaseModel
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, UploadFile
+from fastapi.responses import PlainTextResponse, StreamingResponse
+from pydantic import BaseModel as _BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import TokenData, get_current_user
+from app.config import refresh_settings
 from app.database import get_db
 from app.models import Asset, ComplianceResult, Finding, Scan
 from app.schemas import (
     APIResponse,
+    AssetOut,
+    ComplianceResultOut,
     ComplianceSummary,
     DashboardStats,
     FindingOut,
@@ -25,13 +31,10 @@ from app.schemas import (
     ScanSummary,
     SeverityBreakdown,
     SuppressFindingRequest,
-    AssetOut,
-    ComplianceResultOut,
 )
 from app.services.finding_service import FindingService
 from app.services.scan_service import ScanService
 from app.utils.constants import FindingStatus, SEVERITY_WEIGHTS, Severity
-from app.config import refresh_settings, settings
 from app.utils.rate_limit import limiter
 
 router = APIRouter()
@@ -332,7 +335,7 @@ async def scan_iac_upload(request: Request, file: UploadFile, _: AuthUser) -> AP
     from app.utils.upload_validator import validate_terraform_upload
     from app.utils.audit_log import log_iac_scan
     client_ip = request.client.host if request.client else "unknown"
-    raw = await validate_terraform_upload(file)
+    raw = await validate_terraform_upload(file, client_ip=client_ip)
     content = raw.decode("utf-8", errors="ignore")
     log_iac_scan(ip=client_ip, filename=file.filename or "upload.tf")
     scanner = TerraformScanner()
@@ -399,10 +402,6 @@ async def ai_chat(_: AuthUser, body: ChatRequest) -> APIResponse:
 
 # ── Scan Status SSE Stream ────────────────────────────────────────────────────
 
-import asyncio
-import json
-from fastapi.responses import StreamingResponse
-
 
 @router.get("/scans/{scan_id}/stream", tags=["Scans"])
 async def stream_scan_status(
@@ -414,7 +413,6 @@ async def stream_scan_status(
     SSE stream for real-time scan status updates.
     Polls scan every 1s, emits status events, closes when scan completes/fails.
     """
-    svc = ScanService(db)
 
     async def event_generator():
         from app.database import AsyncSessionLocal
@@ -452,8 +450,6 @@ async def stream_scan_status(
 
 
 # ── Report Export ─────────────────────────────────────────────────────────────
-
-from fastapi.responses import PlainTextResponse, StreamingResponse as FileStreamingResponse
 
 
 @router.get("/reports/findings/csv", tags=["Reports"])

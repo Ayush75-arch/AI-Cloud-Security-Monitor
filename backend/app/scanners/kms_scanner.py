@@ -4,7 +4,6 @@ Collects KMS key configurations: key rotation, key state,
 key usage, and aliases for each key.
 """
 import asyncio
-from typing import Any
 
 import botocore.exceptions
 

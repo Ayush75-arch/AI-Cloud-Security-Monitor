@@ -4,11 +4,10 @@ All detection rules inherit from BaseRule.
 Rules are stateless: evaluate() takes an asset config and returns a Finding or None.
 """
 import abc
-import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
-from app.utils.constants import FindingStatus, Severity
+from app.utils.constants import Severity
 
 
 @dataclass
@@ -19,9 +18,6 @@ class RuleFinding:
     description: str
     severity: Severity
     compliance_mappings: dict = field(default_factory=dict)
-
-    def with_id(self) -> "RuleFinding":
-        return self
 
 
 class BaseRule(abc.ABC):
@@ -40,8 +36,14 @@ class BaseRule(abc.ABC):
     title: str = ""
     description: str = ""
     severity: Severity = Severity.MEDIUM
-    compliance_mappings: dict = {}   # {CIS: "x.y", NIST: "AC-x", PCI_DSS: "y.z"}
-    applicable_asset_types: list[str] = []
+    compliance_mappings: dict | None = None   # {CIS: "x.y", NIST: "AC-x", PCI_DSS: "y.z"}
+    applicable_asset_types: list[str] | None = None
+
+    def __init__(self) -> None:
+        if self.compliance_mappings is None:
+            self.compliance_mappings = {}
+        if self.applicable_asset_types is None:
+            self.applicable_asset_types = []
 
     @abc.abstractmethod
     def evaluate(self, asset_config: dict[str, Any]) -> RuleFinding | None:
@@ -59,7 +61,7 @@ class BaseRule(abc.ABC):
             title=self.title,
             description=description_override or self.description,
             severity=self.severity,
-            compliance_mappings=self.compliance_mappings,
+            compliance_mappings=self.compliance_mappings or {},
         )
 
     def __repr__(self) -> str:

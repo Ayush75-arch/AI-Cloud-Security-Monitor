@@ -11,6 +11,7 @@ __pycache__/
 *.pyo
 venv/
 .venv/
+test_venv/
 
 # Logs
 *.log
@@ -40,3 +41,15 @@ Thumbs.db
 # pytest cache dirs
 pytest-cache-files-*/
 .pytest_cache/
+
+# Ruff / Mypy
+.ruff_cache/
+.mypy_cache/
+
+# Coverage
+.coverage
+.coverage.*
+
+# Test DB
+test.db
+test.db-journal
