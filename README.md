@@ -360,11 +360,3 @@ make seed        # Seed demo data
 make docker-up   # Start Docker stack
 ```
 
----
-
-## License
-
-MIT
-
-Team
-Built by **Binary Bandits** for Hack2Hire 1.0.
