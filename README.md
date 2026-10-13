@@ -366,8 +366,5 @@ make docker-up   # Start Docker stack
 
 MIT
 
----
-
-## Team
-
+Team
 Built by **Binary Bandits** for Hack2Hire 1.0.
